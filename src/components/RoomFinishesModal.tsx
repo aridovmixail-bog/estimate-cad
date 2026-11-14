@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Room } from '../cad/types';
 import { PirogCategory, PirogDefinition, RoomSelectionState, PricingTariff, WorkTemplate, MaterialTemplate } from '../estimate/types';
+import { CustomPirogCreatorModal } from './CustomPirogCreatorModal';
 import { DEFAULT_PIROGS, PIROG_CATEGORIES } from '../estimate/defaultPirogs';
 import { 
   Layers, 
@@ -350,6 +351,8 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
 
   // Модалка для создания нового пирога отделки
   const [newPirogCategory, setNewPirogCategory] = useState<string | null>(null);
+  const [isCustomCreatorOpen, setIsCustomCreatorOpen] = useState<boolean>(false);
+  const [creatorDefaultCategory, setCreatorDefaultCategory] = useState<PirogCategory>('floor');
   const [newPirogName, setNewPirogName] = useState<string>('');
 
   useEffect(() => {
@@ -633,13 +636,28 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white p-1.5 rounded-lg transition-colors cursor-pointer"
-            title="Закрыть [Esc]"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCreatorDefaultCategory('floor');
+                setIsCustomCreatorOpen(true);
+              }}
+              className="px-2.5 py-1 text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-lg shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              title="Создать свой собственный пирог отделки с нуля с любыми работами и ценами"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>+ Свой пирог с нуля</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white p-1.5 rounded-lg transition-colors cursor-pointer"
+              title="Закрыть [Esc]"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* ТОСТ УВЕДОМЛЕНИЯ */}
@@ -714,18 +732,28 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                       <div className="relative">
                         <select
                           value={currentPirogId}
-                          onChange={(e) => setLocalPirogIds({
-                            ...localPirogIds,
-                            [item.category]: e.target.value === 'none' ? null : e.target.value
-                          })}
+                          onChange={(e) => {
+                            if (e.target.value === '__create_custom__') {
+                              setCreatorDefaultCategory(item.category as PirogCategory);
+                              setIsCustomCreatorOpen(true);
+                              return;
+                            }
+                            setLocalPirogIds({
+                              ...localPirogIds,
+                              [item.category]: e.target.value === 'none' ? null : e.target.value
+                            });
+                          }}
                           className="w-full text-xs font-semibold px-2.5 py-1.5 pr-8 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer truncate appearance-none"
                         >
                           <option value="none">— Без отделки / Ничего —</option>
                           {availablePirogs.map(p => (
                             <option key={p.id} value={p.id}>
-                              {p.name}
+                              {p.isCustom ? '⭐ ' : ''}{p.name}
                             </option>
                           ))}
+                          <option value="__create_custom__" className="font-bold text-indigo-700 bg-indigo-50">
+                            ✨ + Создать свой пирог отделки с нуля...
+                          </option>
                         </select>
                         <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
@@ -1086,6 +1114,26 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           </div>
         </div>
 
+        {/* МОДАЛЬНЫЙ КОНСТРУКТОР ПИРОГА С НУЛЯ */}
+        <CustomPirogCreatorModal
+          isOpen={isCustomCreatorOpen}
+          onClose={() => setIsCustomCreatorOpen(false)}
+          defaultCategory={creatorDefaultCategory}
+          onSaveNewPirog={(newPirog) => {
+            const updated = [...allPirogs, newPirog];
+            onPirogsUpdated(updated);
+            try {
+              const saved = loadEffectivePirogs();
+              const existingIdx = saved.findIndex(p => p.id === newPirog.id);
+              if (existingIdx >= 0) saved[existingIdx] = newPirog;
+              else saved.push(newPirog);
+              localStorage.setItem('estimate_cad_custom_pirogs_v2', JSON.stringify(saved));
+            } catch {}
+            setLocalPirogIds(prev => ({ ...prev, [newPirog.category]: newPirog.id }));
+            setExpandedSections(prev => ({ ...prev, [newPirog.category]: true }));
+            showToast(`🎉 Пирог «${newPirog.name}» успешно создан и применен!`);
+          }}
+        />
       </div>
     </div>,
     document.body

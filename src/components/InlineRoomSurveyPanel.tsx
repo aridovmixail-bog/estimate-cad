@@ -75,6 +75,25 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Флаг двусторонней синхронизации между чертежом и ручным вводом в обмере
+  const [isCanvasSyncEnabled, setIsCanvasSyncEnabled] = useState<boolean>(() => {
+    try {
+      const s = localStorage.getItem('estimate_cad_sync_canvas_enabled');
+      if (s !== null) return JSON.parse(s);
+    } catch {}
+    return true;
+  });
+
+  const toggleCanvasSync = () => {
+    setIsCanvasSyncEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('estimate_cad_sync_canvas_enabled', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // ID развернутой карточки для тонкой настройки дверей и окон
   const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);
 
@@ -83,8 +102,9 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
   const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
   const [saveCustomAsTemplate, setSaveCustomAsTemplate] = useState<boolean>(true);
 
-  // Синхронизация при внешнем изменении rooms (например, из OCR или при черчении стен)
+  // Синхронизация при внешнем изменении rooms (только если связь включена)
   useEffect(() => {
+    if (!isCanvasSyncEnabled) return;
     if (rooms) {
       const currentIds = importedRooms.map(r => `${r.id}_${r.floorArea}_${r.wallNetArea}_${r.name}`).join('|');
       const newIds = rooms.map(r => `${r.id}_${r.floorArea}_${r.wallNetArea}_${r.name}`).join('|');
@@ -92,13 +112,15 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
         setImportedRooms(rooms.map(convertCadRoomToImported));
       }
     }
-  }, [rooms]);
+  }, [rooms, isCanvasSyncEnabled]);
 
   // Применение изменений обратно в App.tsx
   const commitRooms = (newImported: ImportedRoomData[]) => {
     setImportedRooms(newImported);
-    const cadRooms = convertImportedRoomsToCadRooms(newImported);
-    onRoomsChange(cadRooms);
+    if (isCanvasSyncEnabled) {
+      const cadRooms = convertImportedRoomsToCadRooms(newImported);
+      onRoomsChange(cadRooms);
+    }
     try {
       localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(newImported));
     } catch {}
@@ -299,6 +321,34 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
           </button>
         </div>
       )}
+
+      {/* 0. ТУМБЛЕР ДВУСТОРОННЕЙ СВЯЗИ ЧЕРТЕЖА И РУЧНОГО ОБМЕРА */}
+      <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-slate-50 via-blue-50/50 to-indigo-50/40 border border-blue-200/70 rounded-xl shadow-2xs">
+        <div className="flex items-center gap-2">
+          <div className={`w-2.5 h-2.5 rounded-full ${isCanvasSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+          <div>
+            <div className="text-xs font-bold text-slate-800 leading-tight">
+              Связь чертежа и ручного ввода
+            </div>
+            <div className="text-[10px] text-slate-500 leading-tight">
+              {isCanvasSyncEnabled ? 'Синхронизация активна: чертёж ↔ обмер' : 'Ручной обмер автономен (без связи с холстом)'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleCanvasSync}
+          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+            isCanvasSyncEnabled 
+              ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95' 
+              : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+          }`}
+          title={isCanvasSyncEnabled ? 'Нажмите, чтобы отключить связь' : 'Нажмите, чтобы включить связь'}
+        >
+          <span>{isCanvasSyncEnabled ? '🔗 ВКЛ' : '⚪ ВЫКЛ'}</span>
+        </button>
+      </div>
 
       {/* 1. БЛОК БЫСТРОГО ВЫБОРА КОМНАТ ИЗ ПРЕСЕТОВ */}
       <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50 border border-blue-200/80 rounded-xl p-2.5 shadow-2xs space-y-2">

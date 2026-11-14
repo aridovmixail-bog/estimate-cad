@@ -49,6 +49,7 @@ import { EstimateRoomsPanel } from '../components/EstimateRoomsPanel';
 import { SandwichConstructorModal } from '../components/SandwichConstructorModal';
 
 import { PlanNotesSidePanel } from '../components/PlanNotesSidePanel';
+import { DetectedRoomsModal } from '../components/DetectedRoomsModal';
 
 import { vectorizePlanImage } from './planVectorizer';
 
@@ -234,6 +235,8 @@ interface CadCanvasProps {
 
   onNavigateToEstimate?: () => void;
 
+  externalRooms?: Room[];
+
 }
 
 
@@ -300,7 +303,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
   onRoomsUpdated,
 
-  onOpenRoomFinishes
+  onOpenRoomFinishes,
+  onClearAll,
+  externalRooms
 
 }) => {
 
@@ -669,6 +674,26 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
 
   const [showConstructorModal, setShowConstructorModal] = useState<boolean>(false);
+  const [isDetectedModalOpen, setIsDetectedModalOpen] = useState<boolean>(false);
+  const [rawDetectedRooms, setRawDetectedRooms] = useState<ImportedRoomData[]>([]);
+
+  // Двусторонняя синхронизация комнат из раздела «Обмер» на холст чертежа
+  useEffect(() => {
+    if (externalRooms && externalRooms.length > 0) {
+      setRooms(prevRooms => {
+        let changed = false;
+        const updated = prevRooms.map(r => {
+          const ext = externalRooms.find(e => e.id === r.id);
+          if (ext && (ext.name !== r.name || ext.doorsCount !== r.doorsCount || ext.windowsCount !== r.windowsCount)) {
+            changed = true;
+            return { ...r, name: ext.name, doorsCount: ext.doorsCount, windowsCount: ext.windowsCount };
+          }
+          return r;
+        });
+        return changed ? updated : prevRooms;
+      });
+    }
+  }, [externalRooms]);
 
   const [showDetectedTextModal, setShowDetectedTextModal] = useState<boolean>(false);
 
@@ -976,16 +1001,12 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
         }
 
         if (finalImportedRooms.length > 0) {
-          try {
-            localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(finalImportedRooms));
-          } catch {}
-          const cadRooms = convertImportedRoomsToCadRooms(finalImportedRooms);
-          setRooms(cadRooms);
-          if (onRoomsUpdated) onRoomsUpdated(cadRooms);
+          setRawDetectedRooms(finalImportedRooms);
+          setIsDetectedModalOpen(true);
+          showToast(`📋 На чертеже распознано ${finalImportedRooms.length} помещений. Открыто окно проверки!`);
         }
 
         setIsCheatSheetOpen(false);
-        showToast('📋 Данные чертежа прочитаны и сразу записаны во вкладку «1. Обмер»!');
 
       }
 
@@ -1766,9 +1787,40 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
 
 
-      // Переносим на чистый лист (наносим стены чертежа)
+      // Чертёж ложится СТРОГО как фоновая подложка (без автоматического нагромождения стен)!
+      setAllWalls([]);
+      setRooms([]);
 
-      setAllWalls(positionedWalls);
+      // Подготавливаем распознанные комнаты для модального окна проверки
+      let autoDetectedRooms: ImportedRoomData[] = [];
+      if (result.detectedRooms && result.detectedRooms.length > 0) {
+        autoDetectedRooms = result.detectedRooms.map((r: any, idx: number) => {
+          const area = Number(r.floorArea || r.areaApprox) || 0;
+          return createImportedRoom({
+            name: r.name || `Помещение ${idx + 1}`,
+            floorArea: area,
+            ceilingHeight: ceilingHeight,
+            doorsCount: 1,
+            doorWidth: r.isWet ? 0.70 : 0.80,
+            windowsCount: r.isWet ? 0 : 1,
+            windowWidth: 1.40,
+            windowHeight: 1.40
+          });
+        });
+      } else if (result.detectedTextNotes && result.detectedTextNotes.length > 0) {
+        const parsed = parseHandwrittenNotesToRooms(result.detectedTextNotes, ceilingHeight);
+        if (parsed.rooms && parsed.rooms.length > 0) {
+          autoDetectedRooms = parsed.rooms;
+        }
+      }
+
+      if (autoDetectedRooms.length > 0) {
+        setRawDetectedRooms(autoDetectedRooms);
+        setIsDetectedModalOpen(true);
+        showToast(`📐 Чертёж загружен как подложка. Найдено ${autoDetectedRooms.length} помещений — проверьте в открывшемся окне!`);
+      } else {
+        showToast('📐 Чертёж загружен как подложка (фон). Откалибруйте масштаб [📏] или чертите стены!');
+      }
 
 
 
@@ -5244,8 +5296,9 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     }
 
     if (onRoomsUpdated) onRoomsUpdated([]);
+    if (onClearAll) onClearAll();
 
-    showToast('План и фоновая подложка полностью очищены');
+    showToast('План, помещения и данные проекта полностью очищены');
 
     actionLogger.addLog('delete', 'Очищен весь чертеж: стены, комнаты, проемы, обозначения и фон подложки');
 
@@ -12330,6 +12383,16 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     )}
 
                     <button
+                      type="button"
+                      onClick={() => setIsDetectedModalOpen(true)}
+                      className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Редактировать распознанные помещения и перенести в раздел «Обмер»"
+                    >
+                      <Sparkles className="w-3 h-3 text-blue-600" />
+                      <span>Комнаты OCR</span>
+                    </button>
+
+                    <button
 
                       type="button"
 
@@ -15872,6 +15935,23 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         )}
 
         {/* ПОЛНОЭКРАННЫЙ КОНСТРУКТОР БУТЕРБРОДОВ (ПИРОГОВ) И МАТРИЧНАЯ БАЗА */}
+
+        {/* МОДАЛЬНОЕ ОКНО ПРОВЕРКИ И РЕДАКТИРОВАНИЯ РАСПОЗНАННЫХ КОМНАТ С ЧЕРТЕЖА */}
+        <DetectedRoomsModal
+          isOpen={isDetectedModalOpen}
+          onClose={() => setIsDetectedModalOpen(false)}
+          detectedRooms={rawDetectedRooms}
+          globalCeilingHeight={ceilingHeight}
+          onApplyToSurvey={(appliedRooms) => {
+            try {
+              localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(appliedRooms));
+            } catch {}
+            const cadRooms = convertImportedRoomsToCadRooms(appliedRooms);
+            setRooms(cadRooms);
+            if (onRoomsUpdated) onRoomsUpdated(cadRooms);
+            showToast(`🎉 ${appliedRooms.length} помещений перенесены в раздел «1. Обмер»!`);
+          }}
+        />
 
         <SandwichConstructorModal
 

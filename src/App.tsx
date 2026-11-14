@@ -187,6 +187,9 @@ export const App: React.FC = () => {
   // Активная комната для модального окна выбора отделки (открывается по двойному клику)
   const [activeFinishesRoom, setActiveFinishesRoom] = useState<Room | null>(null);
 
+  // Ключ для мгновенного сброса холста чертежа при полной очистке проекта
+  const [cadResetKey, setCadResetKey] = useState<number>(0);
+
   // Параметры высоты
   const [ceilingHeight, setCeilingHeight] = useState<number>(2.70);
 
@@ -228,7 +231,14 @@ export const App: React.FC = () => {
       localStorage.removeItem('estimate_cad_survey_appliances_v2');
       localStorage.removeItem('estimate_cad_survey_extra_items_v2');
       localStorage.removeItem('estimate_cad_imported_rooms');
+      localStorage.removeItem('estimate_cad_walls');
+      localStorage.removeItem('estimate_cad_rooms');
+      localStorage.removeItem('estimate_cad_fixtures');
+      localStorage.removeItem('estimate_cad_backdrop_v2');
+      localStorage.removeItem('estimate_cad_backdrop_img');
+      localStorage.removeItem('estimate_cad_cheatsheet_data');
     } catch {}
+    setCadResetKey(prev => prev + 1);
   }, []);
 
   // Загрузка эталонных комнат для квартиры 63 м²
@@ -383,18 +393,16 @@ export const App: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-slate-400">{clientInfo.contractNumber || 'Б/Н'}</span>
-              {(clientInfo.name || clientInfo.address || clientInfo.phone || clientInfo.contractNumber) ? (
+              {(clientInfo.name || clientInfo.address || clientInfo.phone || clientInfo.contractNumber || rooms.length > 0) ? (
                 <button
                   type="button"
                   onClick={() => {
-                    const empty = getEmptyClientInfo();
-                    setClientInfo(empty);
-                    try {
-                      localStorage.setItem(STORAGE_KEY_CLIENT, JSON.stringify(empty));
-                    } catch {}
+                    if (window.confirm('Очистить весь проект? Будут удалены данные заказчика, все помещения, чертёж и расчёт сметы.')) {
+                      handleClearAllProject();
+                    }
                   }}
-                  className="text-[10px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                  title="Очистить данные заказчика"
+                  className="text-[10px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer font-bold hover:underline"
+                  title="Очистить весь проект (данные заказчика, чертёж, обмер и смету)"
                 >
                   Очистить
                 </button>
@@ -547,12 +555,14 @@ export const App: React.FC = () => {
       {/* Центральный холст CAD */}
       <div className="flex-1 h-full relative">
         <CadCanvas 
+          key={cadResetKey}
           ceilingHeight={ceilingHeight}
           doorDefaultHeight={doorHeight}
           doorDefaultWidth={doorWidth}
           windowWidth={1.40}
           windowHeight={1.40}
           windowPresets={windowPresets}
+          externalRooms={rooms}
           onRoomsUpdated={handleRoomsUpdated}
           onOpenRoomFinishes={(room) => setActiveFinishesRoom(room)}
           onClearAll={handleClearAllProject}
