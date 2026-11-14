@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Room } from '../cad/types';
-import { PirogCategory, PirogDefinition, RoomSelectionState, PricingTariff } from '../estimate/types';
+import { PirogCategory, PirogDefinition, RoomSelectionState, PricingTariff, WorkTemplate, MaterialTemplate } from '../estimate/types';
 import { DEFAULT_PIROGS, PIROG_CATEGORIES } from '../estimate/defaultPirogs';
 import { 
   Layers, 
@@ -14,18 +14,17 @@ import {
   ChevronDown, 
   ChevronRight,
   Info,
-  DollarSign
+  DollarSign,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Save,
+  Pencil,
+  Copy
 } from 'lucide-react';
 
 /**
- * Эталонные строительные пироги отделки, сформированные СТРОГО на основе
- * вашей оригинальной сметы объекта (ул. Дангиреева, д. 2, к.3, кв. 376):
- * - Стены под обои: грунт 70 + шпатлевка 2 сл 530 + шлифовка 100 + грунт 70 + обои 550 = 1 320 ₽/м²
- * - Стены плитка: грунт 70 + штукатурка ЦПС 720 + гидроизоляция 500 + грунт 70 + укладка 2000 + затирка 500 = 3 860 ₽/м²
- * - Пол ламинат: укладка ламината с подложкой = 600 ₽/м²
- * - Пол керамогранит: наливной пол 700 + грунт 250 + гидроизоляция 500 + плитка 2000 + затирка 500 = 4 020 ₽/м²
- * - Потолок: натяжной потолок матовый белый = 750 ₽/м²
- * - Плинтус: монтаж пластикового плинтуса = 450 ₽/м.п.
+ * Эталонные строительные пироги отделки по Краснодару (ул. Дангиреева, д. 2, к.3, кв. 376):
  */
 export const KRASNODAR_ESTIMATE_PIROGS: PirogDefinition[] = [
   // 1. СТЕНЫ
@@ -113,32 +112,31 @@ export const KRASNODAR_ESTIMATE_PIROGS: PirogDefinition[] = [
       { id: 'kft_3', name: 'Гидроизоляция пола обмазочная 2 раза', unit: 'м²', defaultUnitPrice: 500, multiplierType: 'floorArea' },
       { id: 'kft_4', name: 'Грунтование пола (перед укладкой плитки)', unit: 'м²', defaultUnitPrice: 70, multiplierType: 'floorArea' },
       { id: 'kft_5', name: 'Укладка керамогранита на пол (формат 1200*600)', unit: 'м²', defaultUnitPrice: 2000, multiplierType: 'floorArea' },
-      { id: 'kft_6', name: 'Затирка цементная пол', unit: 'м²', defaultUnitPrice: 500, multiplierType: 'floorArea' },
+      { id: 'kft_6', name: 'Затирка цементная пола', unit: 'м²', defaultUnitPrice: 500, multiplierType: 'floorArea' },
     ],
     materials: []
   },
   {
-    id: 'KRD-F-SCREED',
-    name: 'Только наливной пол (выравнивание стяжки до 10 мм: грунтовка + заливка) — 950 ₽/м²',
+    id: 'KRD-F-VINYL',
+    name: 'Кварцвинил замковый / SPC с подложкой — 650 ₽/м²',
     category: 'floor',
-    description: '1. Грунтование пола перед устройством наливного пола (250₽)\n2. Устройство наливного пола до 10 мм (700₽)',
-    standardPrice: 950,
+    description: 'Укладка замкового кварцвинила / SPC (650₽)',
+    standardPrice: 650,
     works: [
-      { id: 'kfs_1', name: 'Грунтование пола перед устройством наливного пола', unit: 'м²', defaultUnitPrice: 250, multiplierType: 'floorArea' },
-      { id: 'kfs_2', name: 'Устройство наливного пола, до 10 мм', unit: 'м²', defaultUnitPrice: 700, multiplierType: 'floorArea' },
+      { id: 'kfv_1', name: 'Укладка замкового SPC кварцвинила с подложкой', unit: 'м²', defaultUnitPrice: 650, multiplierType: 'floorArea' }
     ],
     materials: []
   },
 
-  // 3. ПОТОЛКИ
+  // 3. ПОТОЛОК
   {
     id: 'KRD-C-STRETCH',
     name: '⭐ Натяжной потолок матовый белый MSD Premium (по смете объекта) — 750 ₽/м²',
     category: 'ceiling',
-    description: 'Монтаж натяжного потолка (белый матовый MSD Premium) (750₽)',
+    description: 'Монтаж натяжного потолка ПВХ со вставкой по периметру (750₽)',
     standardPrice: 750,
     works: [
-      { id: 'kcs_1', name: 'Монтаж натяжного потолка (белый матовый MSD Premium)', unit: 'м²', defaultUnitPrice: 750, multiplierType: 'floorArea' }
+      { id: 'kcs_1', name: 'Монтаж натяжного потолка (белый матовый, профиль, вставка)', unit: 'м²', defaultUnitPrice: 750, multiplierType: 'ceilingArea' }
     ],
     materials: []
   },
@@ -146,23 +144,53 @@ export const KRASNODAR_ESTIMATE_PIROGS: PirogDefinition[] = [
     id: 'KRD-C-PAINT',
     name: 'Покраска потолка (грунтовка + шпатлевка 2 сл + покраска 2 сл) — 1 450 ₽/м²',
     category: 'ceiling',
-    description: 'Грунтовка (70₽) + Шпатлевка 2 сл (580₽) + Шлифовка (150₽) + Грунтовка (70₽) + Покраска 2 сл (580₽)',
+    description: '1. Грунтование потолка (80₽)\n2. Шпатлевание потолка 2 сл (750₽)\n3. Шлифование потолка (170₽)\n4. Покраска потолка в 2 слоя (450₽)',
     standardPrice: 1450,
     works: [
-      { id: 'kcp_1', name: 'Грунтование потолка', unit: 'м²', defaultUnitPrice: 70, multiplierType: 'floorArea' },
-      { id: 'kcp_2', name: 'Шпатлевание потолка 2 раза', unit: 'м²', defaultUnitPrice: 580, multiplierType: 'floorArea' },
-      { id: 'kcp_3', name: 'Шлифование потолка', unit: 'м²', defaultUnitPrice: 150, multiplierType: 'floorArea' },
-      { id: 'kcp_4', name: 'Покраска потолка в 2 слоя', unit: 'м²', defaultUnitPrice: 580, multiplierType: 'floorArea' },
+      { id: 'kcp_1', name: 'Грунтование потолка перед шпатлеванием', unit: 'м²', defaultUnitPrice: 80, multiplierType: 'ceilingArea' },
+      { id: 'kcp_2', name: 'Шпатлевание потолка 2 слоя', unit: 'м²', defaultUnitPrice: 750, multiplierType: 'ceilingArea' },
+      { id: 'kcp_3', name: 'Шлифование потолка', unit: 'м²', defaultUnitPrice: 170, multiplierType: 'ceilingArea' },
+      { id: 'kcp_4', name: 'Окрашивание потолка в 2 слоя', unit: 'м²', defaultUnitPrice: 450, multiplierType: 'ceilingArea' },
+    ],
+    materials: []
+  },
+  {
+    id: 'KRD-C-GKL',
+    name: 'Гипсокартонный потолок (ГКЛ в 1 ур. под покраску) — 2 650 ₽/м²',
+    category: 'ceiling',
+    description: 'Монтаж металлокаркаса и ГКЛ в 1 уровень + подготовка под покраску',
+    standardPrice: 2650,
+    works: [
+      { id: 'kcg_1', name: 'Монтаж каркаса и ГКЛ потолка в 1 уровень', unit: 'м²', defaultUnitPrice: 1200, multiplierType: 'ceilingArea' },
+      { id: 'kcg_2', name: 'Шпатлевание швов ГКЛ с армирующей лентой', unit: 'м²', defaultUnitPrice: 350, multiplierType: 'ceilingArea' },
+      { id: 'kcg_3', name: 'Сплошное шпатлевание и покраска ГКЛ в 2 слоя', unit: 'м²', defaultUnitPrice: 1100, multiplierType: 'ceilingArea' },
     ],
     materials: []
   },
 
-  // 4. ПЛИНТУС НАПОЛЬНЫЙ
+  // 4. ДВЕРНЫЕ БЛОКИ
+  {
+    id: 'FIN-D-01',
+    name: 'Установка межкомнатной двери с доборами и наличниками — 4 700 ₽/шт',
+    category: 'doors',
+    description: '1. Установка двери с коробкой, наличниками и врезкой фурнитуры (4200₽)\n2. Установка доборов (500₽)',
+    standardPrice: 4700,
+    works: [
+      { id: 'krd_d1', name: 'Установка межкомнатной двери (коробка, полотно, наличники, фурнитура)', unit: 'шт.', defaultUnitPrice: 4200, multiplierType: 'doorsCount' },
+      { id: 'krd_d2', name: 'Установка доборов (~5 п.м. на проём)', unit: 'пог. м', defaultUnitPrice: 500, multiplierType: 'fixed', fixedQuantity: 1 }
+    ],
+    materials: [
+      { id: 'krd_dm1', name: 'Пена монтажная проф., крепеж скрытый, герметик акриловый', unit: 'компл.', defaultUnitPrice: 850, normPerUnit: 1.0, multiplierType: 'doorsCount' },
+      { id: 'krd_dm2', name: 'Дверное полотно, коробка, наличники, доборы, ручка и замок', unit: 'компл.', defaultUnitPrice: 18500, normPerUnit: 1.0, multiplierType: 'doorsCount' }
+    ]
+  },
+
+  // 5. ПЛИНТУС НАПОЛЬНЫЙ
   {
     id: 'KRD-O-PLINTH',
-    name: '⭐ Монтаж напольного пластикового плинтуса с кабель-каналом (по смете объекта) — 450 ₽/м.п.',
+    name: '⭐ Монтаж напольного пластикового плинтуса с кабель-каналом — 450 ₽/м.п.',
     category: 'other',
-    description: 'Монтаж напольного пластикового плинтуса с кабель-каналом (450₽)',
+    description: 'Монтаж пластикового плинтуса по периметру (450₽)',
     standardPrice: 450,
     works: [
       { id: 'kpo_1', name: 'Монтаж напольного пластикового плинтуса с кабель-каналом', unit: 'м.пог.', defaultUnitPrice: 450, multiplierType: 'perimeter' }
@@ -182,10 +210,73 @@ export const KRASNODAR_ESTIMATE_PIROGS: PirogDefinition[] = [
   }
 ];
 
-const MERGED_PIROGS: PirogDefinition[] = [
-  ...KRASNODAR_ESTIMATE_PIROGS,
-  ...DEFAULT_PIROGS.filter(dp => !KRASNODAR_ESTIMATE_PIROGS.some(kp => kp.id === dp.id))
-];
+export const STORAGE_CUSTOM_PIROGS = 'estimate_cad_custom_pirogs_v2';
+
+export function getBasePirogs(): PirogDefinition[] {
+  const merged = [...KRASNODAR_ESTIMATE_PIROGS];
+  DEFAULT_PIROGS.forEach(dp => {
+    if (!merged.some(m => m.id === dp.id)) {
+      merged.push(dp);
+    }
+  });
+  return merged;
+}
+
+export function loadEffectivePirogs(): PirogDefinition[] {
+  const base = getBasePirogs();
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_PIROGS);
+    if (raw) {
+      const customList: PirogDefinition[] = JSON.parse(raw);
+      const result = [...base];
+      customList.forEach(cp => {
+        const idx = result.findIndex(p => p.id === cp.id);
+        if (idx !== -1) {
+          result[idx] = cp;
+        } else {
+          result.push(cp);
+        }
+      });
+      return result;
+    }
+  } catch (e) {
+    console.error('Failed to load custom pirogs', e);
+  }
+  return base;
+}
+
+export function saveCustomPirog(pirog: PirogDefinition): PirogDefinition[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_PIROGS);
+    let list: PirogDefinition[] = raw ? JSON.parse(raw) : [];
+    const idx = list.findIndex(p => p.id === pirog.id);
+    if (idx !== -1) {
+      list[idx] = pirog;
+    } else {
+      list.push(pirog);
+    }
+    localStorage.setItem(STORAGE_CUSTOM_PIROGS, JSON.stringify(list));
+  } catch (e) {
+    console.error('Failed to save custom pirog', e);
+  }
+  return loadEffectivePirogs();
+}
+
+export function resetPirogToDefault(pirogId: string): PirogDefinition[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_PIROGS);
+    if (raw) {
+      let list: PirogDefinition[] = raw ? JSON.parse(raw) : [];
+      list = list.filter(p => p.id !== pirogId);
+      localStorage.setItem(STORAGE_CUSTOM_PIROGS, JSON.stringify(list));
+    }
+  } catch (e) {
+    console.error('Failed to reset pirog', e);
+  }
+  return loadEffectivePirogs();
+}
+
+const MERGED_PIROGS: PirogDefinition[] = getBasePirogs();
 
 interface RoomFinishesModalProps {
   isOpen: boolean;
@@ -196,6 +287,7 @@ interface RoomFinishesModalProps {
   tariff?: PricingTariff;
   regionalCoeff?: number;
   allPirogs?: PirogDefinition[];
+  onPirogsUpdated?: (updatedPirogs: PirogDefinition[]) => void;
 }
 
 export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
@@ -206,11 +298,25 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
   onSaveFinishes,
   tariff = 'standard',
   regionalCoeff = 1.0,
-  allPirogs = MERGED_PIROGS,
+  allPirogs: externalAllPirogs,
+  onPirogsUpdated
 }) => {
   if (!isOpen || !room) return null;
 
   const isWetRoom = room.roomType === 'wet' || /ванн|сануз|туалет|душ/i.test(room.name);
+
+  // Список всех доступных пирогов с учетом сохраненных в localStorage
+  const [allPirogs, setAllPirogs] = useState<PirogDefinition[]>(() => {
+    return externalAllPirogs && externalAllPirogs.length > 0 ? externalAllPirogs : loadEffectivePirogs();
+  });
+
+  useEffect(() => {
+    if (externalAllPirogs && externalAllPirogs.length > 0) {
+      setAllPirogs(externalAllPirogs);
+    } else {
+      setAllPirogs(loadEffectivePirogs());
+    }
+  }, [externalAllPirogs]);
 
   const currentSelection = selections[room.id] || {
     roomId: room.id,
@@ -220,9 +326,6 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
     customMaterials: []
   };
 
-  // По умолчанию для комнат подставляем эталонные пироги из сметы Дангиреева:
-  // Для санузла/ванной: Керамогранит на стены и пол
-  // Для жилых комнат/кухни: Обои + Ламинат + Натяжной потолок + Плинтус
   const [localPirogIds, setLocalPirogIds] = useState<Record<string, string | null>>(() => {
     return {
       ceiling: currentSelection.selectedPirogIds.ceiling || 'KRD-C-STRETCH',
@@ -235,6 +338,19 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
 
   // Раскрытые аккордеоны с составом работ
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  // Уведомление о сохранении / сбросе
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => {
+      setToastMsg(prev => prev === msg ? null : prev);
+    }, 3500);
+  };
+
+  // Модалка для создания нового пирога отделки
+  const [newPirogCategory, setNewPirogCategory] = useState<string | null>(null);
+  const [newPirogName, setNewPirogName] = useState<string>('');
 
   useEffect(() => {
     if (room) {
@@ -253,8 +369,154 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
   // Длина откосов окон
   const windowSlopesLength = useMemo(() => {
     if (!room.windowsList || room.windowsList.length === 0) return 0;
-    return room.windowsList.reduce((acc, w) => acc + (w.width + 2 * w.height), 0);
+    return room.windowsList.reduce((acc: number, w: any) => acc + (w.width + 2 * w.height), 0);
   }, [room.windowsList]);
+
+  // Мутации работ и материалов активного пирога
+  const handleUpdateWorkField = (pirogId: string, workId: string, field: keyof WorkTemplate, value: any) => {
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          works: p.works.map(w => {
+            if (w.id !== workId) return w;
+            return { ...w, [field]: value };
+          })
+        };
+      });
+    });
+  };
+
+  const handleAddWorkRow = (pirogId: string, category: string) => {
+    const defaultMult = category === 'floor' ? 'floorArea' : category === 'walls' ? 'wallNetArea' : category === 'ceiling' ? 'ceilingArea' : category === 'doors' ? 'doorsCount' : 'perimeter';
+    const newWork: WorkTemplate = {
+      id: `custom_w_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: 'Новая работа',
+      unit: category === 'doors' ? 'шт.' : category === 'other' ? 'м.пог.' : 'м²',
+      defaultUnitPrice: 500,
+      multiplierType: defaultMult
+    };
+
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          works: [...p.works, newWork]
+        };
+      });
+    });
+  };
+
+  const handleDeleteWorkRow = (pirogId: string, workId: string) => {
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          works: p.works.filter(w => w.id !== workId)
+        };
+      });
+    });
+  };
+
+  const handleUpdateMaterialField = (pirogId: string, matId: string, field: keyof MaterialTemplate, value: any) => {
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          materials: p.materials.map(m => {
+            if (m.id !== matId) return m;
+            return { ...m, [field]: value };
+          })
+        };
+      });
+    });
+  };
+
+  const handleAddMaterialRow = (pirogId: string, category: string) => {
+    const defaultMult = category === 'floor' ? 'floorArea' : category === 'walls' ? 'wallNetArea' : category === 'ceiling' ? 'ceilingArea' : category === 'doors' ? 'doorsCount' : 'perimeter';
+    const newMaterial: MaterialTemplate = {
+      id: `custom_m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: 'Новый черновой материал',
+      unit: 'кг',
+      defaultUnitPrice: 250,
+      normPerUnit: 1.0,
+      multiplierType: defaultMult
+    };
+
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          materials: [...p.materials, newMaterial]
+        };
+      });
+    });
+  };
+
+  const handleDeleteMaterialRow = (pirogId: string, matId: string) => {
+    setAllPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return {
+          ...p,
+          materials: p.materials.filter(m => m.id !== matId)
+        };
+      });
+    });
+  };
+
+  // Сохранение изменений в текущий пирог
+  const handleSaveCurrentPirog = (pirogId: string) => {
+    const target = allPirogs.find(p => p.id === pirogId);
+    if (!target) return;
+    const updatedList = saveCustomPirog(target);
+    setAllPirogs(updatedList);
+    onPirogsUpdated?.(updatedList);
+    showToast(`💾 Пирог «${target.name.slice(0, 32)}...» сохранен в базу!`);
+  };
+
+  // Сохранить как новый пирог
+  const handleConfirmSaveAsNewPirog = () => {
+    if (!newPirogCategory || !newPirogName.trim()) return;
+    const currentId = localPirogIds[newPirogCategory];
+    const basePirog = allPirogs.find(p => p.id === currentId);
+    if (!basePirog) return;
+
+    const newPirog: PirogDefinition = {
+      ...basePirog,
+      id: `custom_${Date.now()}`,
+      name: newPirogName.trim(),
+      isCustom: true,
+      works: [...basePirog.works.map(w => ({ ...w, id: `w_${Date.now()}_${Math.random().toString(36).substring(2, 5)}` }))],
+      materials: [...basePirog.materials.map(m => ({ ...m, id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 5)}` }))]
+    };
+
+    const updatedList = saveCustomPirog(newPirog);
+    setAllPirogs(updatedList);
+    onPirogsUpdated?.(updatedList);
+
+    setLocalPirogIds(prev => ({
+      ...prev,
+      [newPirogCategory]: newPirog.id
+    }));
+
+    setNewPirogCategory(null);
+    setNewPirogName('');
+    showToast(`🎉 Создан и выбран новый пирог «${newPirog.name}»!`);
+  };
+
+  // Сброс к эталону Краснодара
+  const handleResetToBenchmark = (pirogId: string) => {
+    const updatedList = resetPirogToDefault(pirogId);
+    setAllPirogs(updatedList);
+    onPirogsUpdated?.(updatedList);
+    showToast('🔄 Пирог сброшен к эталонному составу и расценкам!');
+  };
 
   // Расчет стоимости по выбранным пирогам комнаты
   const calculatedFinishes = useMemo(() => {
@@ -286,7 +548,6 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
       let mTot = 0;
 
       if (pirog) {
-        // Считаем работы пирога
         pirog.works.forEach(w => {
           let qty = 0;
           if (w.multiplierType === 'floorArea' || w.multiplierType === 'ceilingArea') qty = room.floorArea;
@@ -304,7 +565,6 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           wTot += Math.round(qty * unitPrice * regionalCoeff);
         });
 
-        // Считаем материалы пирога
         pirog.materials.forEach(m => {
           let baseQty = 0;
           if (m.multiplierType === 'floorArea' || m.multiplierType === 'ceilingArea') baseQty = room.floorArea;
@@ -346,11 +606,11 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] text-slate-800 animate-in zoom-in-95">
+    <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-300 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-800 animate-in zoom-in-95">
         
         {/* ШАПКА ОКНА */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between shrink-0 shadow-xs">
+        <div className="px-5 py-3 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white flex items-center justify-between shrink-0 shadow-xs">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-white/10 rounded-xl backdrop-blur-xs">
               <Layers className="w-5 h-5 text-white" />
@@ -363,12 +623,12 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                 </span>
                 {isWetRoom && (
                   <span className="text-[10px] font-bold bg-sky-400 text-blue-950 px-2 py-0.5 rounded-full">
-                    Мокрая зона
+                    💧 Мокрая зона
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-blue-100">
-                Выбор пирогов отделки (потолок, стены, пол, плинтус) для автоматического расчета сметы
+                Выбор пирогов отделки, ручная настройка состава работ, расценок и материалов
               </p>
             </div>
           </div>
@@ -382,6 +642,16 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           </button>
         </div>
 
+        {/* ТОСТ УВЕДОМЛЕНИЯ */}
+        {toastMsg && (
+          <div className="bg-emerald-600 text-white px-4 py-1.5 text-xs font-bold flex items-center justify-between shrink-0 animate-in slide-in-from-top duration-200">
+            <span>{toastMsg}</span>
+            <button onClick={() => setToastMsg(null)} className="text-white/80 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* ГЕОМЕТРИЯ КОМНАТЫ (ПОД ШАПКОЙ) */}
         <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-2 text-xs font-mono shrink-0">
           <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5">
@@ -391,7 +661,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5">
             <span className="text-slate-400">🧱 Стены (чистые):</span>
             <b className="text-emerald-700 text-sm">{room.wallNetArea} м²</b>
-            <span className="text-[10px] text-slate-400 font-sans">(брутто {room.wallGrossArea} м²)</span>
+            <span className="text-[10px] text-slate-400 font-sans">(брутто {room.wallGrossArea || (room.perimeter * (room.ceilingHeight || 2.7)).toFixed(2)} м²)</span>
           </div>
           <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5">
             <span className="text-slate-400">📏 Периметр:</span>
@@ -405,8 +675,8 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           )}
         </div>
 
-        {/* ТЕЛО МОДАЛКИ: КАТЕГОРИИ РАБОТ СО СТРЕЛОЧКАМИ ВЫБОРА */}
-        <div className="p-5 space-y-3.5 overflow-y-auto flex-1">
+        {/* ТЕЛО МОДАЛКИ: КАТЕГОРИИ РАБОТ СО СТРЕЛОЧКАМИ ВЫБОРА И РЕДАКТОРОМ */}
+        <div className="p-4 space-y-3.5 overflow-y-auto flex-1 bg-slate-50/40">
           {calculatedFinishes.list.map(item => {
             const availablePirogs = allPirogs.filter(p => p.category === item.category);
             const isExpanded = !!expandedSections[item.category];
@@ -418,22 +688,29 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                 className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all hover:border-slate-300"
               >
                 {/* СТРОКА КАТЕГОРИИ С ВЫПАДАЮЩИМ СПИСКОМ */}
-                <div className="p-3 flex items-center justify-between gap-3 bg-slate-50/50">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-lg shrink-0">{item.icon}</span>
+                <div className="p-3 flex items-center justify-between gap-3 bg-slate-50/70 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="text-xl shrink-0 p-1.5 bg-white rounded-lg shadow-2xs border border-slate-200/60">
+                      {item.icon}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-xs text-slate-800 uppercase tracking-wider">
+                        <span className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                           {item.categoryName}:
+                          {item.pirog?.isCustom && (
+                            <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-mono font-normal lowercase">
+                              пользовательский
+                            </span>
+                          )}
                         </span>
                         {item.total > 0 && (
-                          <span className="text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          <span className="text-xs font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
                             {formatPrice(item.total)} ₽
                           </span>
                         )}
                       </div>
 
-                      {/* ВЫПАДАЮЩИЙ СПИСОК (СТРЕЛОЧКА ВЫБОРА) */}
+                      {/* ВЫПАДАЮЩИЙ СПИСОК (БЕЗ ДВОЙНОЙ СТРЕЛКИ: appearance-none) */}
                       <div className="relative">
                         <select
                           value={currentPirogId}
@@ -441,7 +718,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                             ...localPirogIds,
                             [item.category]: e.target.value === 'none' ? null : e.target.value
                           })}
-                          className="w-full text-xs font-semibold px-2.5 py-1.5 pr-8 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer truncate"
+                          className="w-full text-xs font-semibold px-2.5 py-1.5 pr-8 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer truncate appearance-none"
                         >
                           <option value="none">— Без отделки / Ничего —</option>
                           {availablePirogs.map(p => (
@@ -455,70 +732,241 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Кнопка показа состава работ */}
+                  {/* Кнопка показа / скрытия состава работ и редактирования */}
                   {item.pirog && (
                     <button
                       type="button"
                       onClick={() => setExpandedSections(prev => ({ ...prev, [item.category]: !prev[item.category] }))}
-                      className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shrink-0 cursor-pointer self-end mb-0.5"
-                      title="Показать подробный состав работ и материалов"
+                      className={`p-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shrink-0 cursor-pointer self-end mb-0.5 border ${
+                        isExpanded ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 hover:text-blue-700 hover:bg-slate-100 border-slate-200 shadow-2xs'
+                      }`}
+                      title="Настроить работы, материалы и цены"
                     >
-                      <span className="text-[10px]">{isExpanded ? 'Скрыть' : 'Состав'}</span>
+                      <Pencil className="w-3 h-3" />
+                      <span className="text-[10px]">{isExpanded ? 'Свернуть' : 'Состав и цены'}</span>
                       {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
 
-                {/* РАСКРЫВАЮЩИЙСЯ СОСТАВ РАБОТ И МАТЕРИАЛОВ */}
+                {/* РАСКРЫВАЮЩИЙСЯ ИНТЕРАКТИВНЫЙ РЕДАКТОР СОСТАВА, РАСЦЕНОК И МАТЕРИАЛОВ */}
                 {isExpanded && item.pirog && (
-                  <div className="p-3 bg-white border-t border-slate-100 text-xs space-y-2 animate-in fade-in">
-                    <div className="text-[10px] text-slate-500 italic pb-1 border-b border-slate-100">
-                      {item.pirog.description}
-                    </div>
+                  <div className="p-3 bg-white space-y-3 text-xs animate-in fade-in duration-150">
+                    
+                    {/* Панель быстрых действий по пирогу */}
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
+                      <div className="text-[11px] text-slate-500 font-medium italic truncate max-w-xs">
+                        {item.pirog.description || item.pirog.name}
+                      </div>
 
-                    {/* Работы */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <Hammer className="w-3 h-3 text-blue-600" />
-                        <span>Работы ({formatPrice(item.worksTotal)} ₽):</span>
-                      </span>
-                      <div className="space-y-1 pl-1">
-                        {item.pirog.works.map(w => {
-                          let qty = 0;
-                          if (w.multiplierType === 'floorArea' || w.multiplierType === 'ceilingArea') qty = room.floorArea;
-                          else if (w.multiplierType === 'wallNetArea') qty = room.wallNetArea;
-                          else if (w.multiplierType === 'perimeter') qty = room.perimeter;
-                          else if (w.multiplierType === 'doorsCount') qty = room.doorsCount || 1;
-                          else if (w.multiplierType === 'windowsCount') qty = room.windowsCount || 0;
-                          else qty = w.fixedQuantity || 1;
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleSaveCurrentPirog(item.pirog!.id)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Сохранить измененные расценки и список работ в этот пирог на будущее"
+                        >
+                          <Save className="w-3 h-3" />
+                          <span>Сохранить в пирог</span>
+                        </button>
 
-                          let unitPrice = w.defaultUnitPrice;
-                          if (tariff === 'econom' && w.economPrice) unitPrice = w.economPrice;
-                          else if (tariff === 'design' && w.designPrice) unitPrice = w.designPrice;
-                          else if (tariff === 'detailed' && w.detailedPrice) unitPrice = w.detailedPrice;
-                          const lineTot = Math.round(qty * unitPrice * regionalCoeff);
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewPirogCategory(item.category);
+                            setNewPirogName(`${item.pirog!.name.split('—')[0].trim()} (свой вариант)`);
+                          }}
+                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Сохранить этот состав как отдельный новый пирог"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Как новый пирог...</span>
+                        </button>
 
-                          return (
-                            <div key={w.id} className="flex justify-between items-center text-[11px] py-0.5 text-slate-700 border-b border-slate-50">
-                              <span className="truncate pr-2">• {w.name}</span>
-                              <span className="font-mono text-slate-500 shrink-0">
-                                {qty} {w.unit} × {formatPrice(unitPrice * regionalCoeff)} = <b>{formatPrice(lineTot)} ₽</b>
-                              </span>
-                            </div>
-                          );
-                        })}
+                        <button
+                          type="button"
+                          onClick={() => handleResetToBenchmark(item.pirog!.id)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-[11px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Сбросить к заводским расценкам сметы Краснодара"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Сбросить к эталону</span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Материалы */}
-                    {item.pirog.materials.length > 0 && (
-                      <div className="space-y-1 pt-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                          <Package className="w-3 h-3 text-amber-600" />
+                    {/* Модальное мини-окно сохранения как нового пирога */}
+                    {newPirogCategory === item.category && (
+                      <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 animate-in fade-in">
+                        <div className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Сохранить текущую конфигурацию как новый вариант пирога:</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newPirogName}
+                            onChange={e => setNewPirogName(e.target.value)}
+                            placeholder="Название нового пирога отделки..."
+                            className="flex-1 px-2.5 py-1 text-xs bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleConfirmSaveAsNewPirog}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer"
+                          >
+                            Создать
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewPirogCategory(null)}
+                            className="px-2.5 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* БЛОК 1: РАБОТЫ */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                          <Hammer className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Работы ({formatPrice(item.worksTotal)} ₽):</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAddWorkRow(item.pirog!.id, item.category)}
+                          className="px-2 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Добавить работу</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {item.pirog.works.length === 0 ? (
+                          <div className="text-[11px] text-slate-400 italic py-1 pl-2">
+                            Нет добавленных работ
+                          </div>
+                        ) : (
+                          item.pirog.works.map(w => {
+                            let qty = 0;
+                            if (w.multiplierType === 'floorArea' || w.multiplierType === 'ceilingArea') qty = room.floorArea;
+                            else if (w.multiplierType === 'wallNetArea') qty = room.wallNetArea;
+                            else if (w.multiplierType === 'perimeter') qty = room.perimeter;
+                            else if (w.multiplierType === 'doorsCount') qty = room.doorsCount || 1;
+                            else if (w.multiplierType === 'windowsCount') qty = room.windowsCount || 0;
+                            else qty = w.fixedQuantity || 1;
+
+                            let unitPrice = w.defaultUnitPrice;
+                            if (tariff === 'econom' && w.economPrice) unitPrice = w.economPrice;
+                            else if (tariff === 'design' && w.designPrice) unitPrice = w.designPrice;
+                            else if (tariff === 'detailed' && w.detailedPrice) unitPrice = w.detailedPrice;
+                            const lineTot = Math.round(qty * unitPrice * regionalCoeff);
+
+                            return (
+                              <div 
+                                key={w.id} 
+                                className="flex flex-wrap items-center justify-between gap-1.5 p-1.5 bg-slate-50/70 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                              >
+                                {/* Наименование работы */}
+                                <input
+                                  type="text"
+                                  value={w.name}
+                                  onChange={e => handleUpdateWorkField(item.pirog!.id, w.id, 'name', e.target.value)}
+                                  className="flex-1 min-w-[200px] text-xs font-semibold px-2 py-1 bg-white border border-slate-200 rounded text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Наименование работы..."
+                                />
+
+                                {/* Единица измерения */}
+                                <input
+                                  type="text"
+                                  value={w.unit}
+                                  onChange={e => handleUpdateWorkField(item.pirog!.id, w.id, 'unit', e.target.value)}
+                                  className="w-14 text-center text-xs font-medium px-1 py-1 bg-white border border-slate-200 rounded text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  title="Единица измерения"
+                                />
+
+                                {/* Базовая цена за единицу */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="10"
+                                    value={w.defaultUnitPrice}
+                                    onChange={e => handleUpdateWorkField(item.pirog!.id, w.id, 'defaultUnitPrice', parseFloat(e.target.value) || 0)}
+                                    className="w-20 text-right font-mono font-bold text-xs px-1.5 py-1 bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    title="Цена за единицу работы (руб)"
+                                  />
+                                  <span className="text-[11px] text-slate-500 font-bold">₽</span>
+                                </div>
+
+                                {/* Тип объема (к чему привязано) */}
+                                <select
+                                  value={w.multiplierType}
+                                  onChange={e => handleUpdateWorkField(item.pirog!.id, w.id, 'multiplierType', e.target.value)}
+                                  className="text-[10px] font-semibold px-1.5 py-1 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none cursor-pointer"
+                                  title="Привязка объема к геометрии"
+                                >
+                                  <option value="wallNetArea">S чистых стен ({room.wallNetArea} м²)</option>
+                                  <option value="floorArea">S пола ({room.floorArea} м²)</option>
+                                  <option value="ceilingArea">S потолка ({room.floorArea} м²)</option>
+                                  <option value="perimeter">Периметр ({room.perimeter} м)</option>
+                                  <option value="doorsCount">Двери ({room.doorsCount || 1} шт)</option>
+                                  <option value="windowsCount">Окна ({room.windowsCount || 0} шт)</option>
+                                  <option value="fixed">Фикс. объем (1)</option>
+                                </select>
+
+                                {/* Итог по строке */}
+                                <div className="min-w-[80px] text-right font-mono text-xs font-bold text-blue-900">
+                                  = {formatPrice(lineTot)} ₽
+                                </div>
+
+                                {/* Кнопка удаления работы */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWorkRow(item.pirog!.id, w.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                  title="Удалить эту работу"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {/* БЛОК 2: ЧЕРНОВЫЕ МАТЕРИАЛЫ */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                          <Package className="w-3.5 h-3.5 text-amber-600" />
                           <span>Черновые материалы ({formatPrice(item.materialsTotal)} ₽):</span>
                         </span>
-                        <div className="space-y-1 pl-1">
-                          {item.pirog.materials.map(m => {
+
+                        <button
+                          type="button"
+                          onClick={() => handleAddMaterialRow(item.pirog!.id, item.category)}
+                          className="px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Добавить материал</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {item.pirog.materials.length === 0 ? (
+                          <div className="text-[11px] text-slate-400 italic py-1 pl-2">
+                            Нет добавленных черновых материалов
+                          </div>
+                        ) : (
+                          item.pirog.materials.map(m => {
                             let baseQty = 0;
                             if (m.multiplierType === 'floorArea' || m.multiplierType === 'ceilingArea') baseQty = room.floorArea;
                             else if (m.multiplierType === 'wallNetArea') baseQty = room.wallNetArea;
@@ -530,17 +978,76 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                             const lineTot = Math.round(totalMatQty * m.defaultUnitPrice * regionalCoeff);
 
                             return (
-                              <div key={m.id} className="flex justify-between items-center text-[11px] py-0.5 text-slate-600 border-b border-slate-50">
-                                <span className="truncate pr-2">• {m.name}</span>
-                                <span className="font-mono text-slate-500 shrink-0">
-                                  {totalMatQty} {m.unit} × {formatPrice(m.defaultUnitPrice * regionalCoeff)} = <b>{formatPrice(lineTot)} ₽</b>
-                                </span>
+                              <div 
+                                key={m.id} 
+                                className="flex flex-wrap items-center justify-between gap-1.5 p-1.5 bg-amber-50/40 border border-amber-200/70 rounded-lg hover:border-amber-300 transition-colors"
+                              >
+                                {/* Наименование материала */}
+                                <input
+                                  type="text"
+                                  value={m.name}
+                                  onChange={e => handleUpdateMaterialField(item.pirog!.id, m.id, 'name', e.target.value)}
+                                  className="flex-1 min-w-[200px] text-xs font-semibold px-2 py-1 bg-white border border-slate-200 rounded text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  placeholder="Наименование материала..."
+                                />
+
+                                {/* Норма расхода на 1 ед. */}
+                                <div className="flex items-center gap-1" title="Норма расхода на 1 единицу площади/проема">
+                                  <span className="text-[10px] text-slate-400">расход:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    value={m.normPerUnit}
+                                    onChange={e => handleUpdateMaterialField(item.pirog!.id, m.id, 'normPerUnit', parseFloat(e.target.value) || 0)}
+                                    className="w-14 text-center text-xs font-mono font-bold px-1 py-1 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  />
+                                </div>
+
+                                {/* Единица измерения */}
+                                <input
+                                  type="text"
+                                  value={m.unit}
+                                  onChange={e => handleUpdateMaterialField(item.pirog!.id, m.id, 'unit', e.target.value)}
+                                  className="w-14 text-center text-xs font-medium px-1 py-1 bg-white border border-slate-200 rounded text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  title="Единица измерения материала (кг, л, рул, шт)"
+                                />
+
+                                {/* Базовая цена за единицу */}
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="10"
+                                    value={m.defaultUnitPrice}
+                                    onChange={e => handleUpdateMaterialField(item.pirog!.id, m.id, 'defaultUnitPrice', parseFloat(e.target.value) || 0)}
+                                    className="w-20 text-right font-mono font-bold text-xs px-1.5 py-1 bg-white border border-slate-300 rounded text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    title="Цена за единицу материала (руб)"
+                                  />
+                                  <span className="text-[11px] text-slate-500 font-bold">₽</span>
+                                </div>
+
+                                {/* Итог по материалу */}
+                                <div className="min-w-[80px] text-right font-mono text-xs font-bold text-amber-900">
+                                  = {formatPrice(lineTot)} ₽
+                                </div>
+
+                                {/* Кнопка удаления материала */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMaterialRow(item.pirog!.id, m.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                  title="Удалить этот материал"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             );
-                          })}
-                        </div>
+                          })
+                        )}
                       </div>
-                    )}
+                    </div>
+
                   </div>
                 )}
               </div>

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CadCanvas } from './cad/CadCanvas';
 import { Room, WindowSizePreset } from './cad/types';
 import { EstimateRoomsPanel } from './components/EstimateRoomsPanel';
-import { RoomFinishesModal, KRASNODAR_ESTIMATE_PIROGS } from './components/RoomFinishesModal';
-import { RoomSelectionState } from './estimate/types';
+import { RoomFinishesModal, KRASNODAR_ESTIMATE_PIROGS, loadEffectivePirogs } from './components/RoomFinishesModal';
+import { RoomSelectionState, PirogDefinition } from './estimate/types';
 import { DEFAULT_PIROGS } from './estimate/defaultPirogs';
 import { PieceworkSurveyPanel } from './components/PieceworkSurveyPanel';
 import { InlineRoomSurveyPanel } from './components/InlineRoomSurveyPanel';
@@ -144,6 +144,9 @@ export const App: React.FC = () => {
       localStorage.setItem(STORAGE_KEY_PRICE_OVERRIDES, JSON.stringify(priceOverrides));
     } catch {}
   }, [priceOverrides]);
+
+  // Список всех пирогов с учетом сохраненных пользовательских настроек
+  const [effectivePirogs, setEffectivePirogs] = useState<PirogDefinition[]>(() => loadEffectivePirogs());
 
   // Данные о заказчике (в самом верху)
   const [clientInfo, setClientInfo] = useState<{
@@ -356,6 +359,7 @@ export const App: React.FC = () => {
               priceOverrides={priceOverrides}
               onResetAll={handleClearAllProject}
               onLoadBenchmarkRooms={handleLoadBenchmarkRooms}
+              pirogs={effectivePirogs}
             />
           </div>
         ) : sidebarTab === 'piecework' ? (
@@ -535,7 +539,7 @@ export const App: React.FC = () => {
             <div className="space-y-2.5">
               {rooms.map((room, idx) => {
                 const roomSel = selections[room.id]?.selectedPirogIds || {};
-                const allPirogsList = [...KRASNODAR_ESTIMATE_PIROGS, ...DEFAULT_PIROGS];
+                const allPirogsList = effectivePirogs;
                 const ceilingPirog = allPirogsList.find(p => p.id === roomSel.ceiling);
                 const wallsPirog = allPirogsList.find(p => p.id === roomSel.walls);
                 const floorPirog = allPirogsList.find(p => p.id === roomSel.floor);
@@ -662,6 +666,8 @@ export const App: React.FC = () => {
         onClose={() => setActiveFinishesRoom(null)}
         selections={selections}
         onSaveFinishes={handleSaveRoomFinishes}
+        allPirogs={effectivePirogs}
+        onPirogsUpdated={setEffectivePirogs}
       />
     </div>
   );
