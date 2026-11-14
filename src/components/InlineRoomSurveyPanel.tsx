@@ -55,6 +55,13 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
     if (rooms && rooms.length > 0) {
       return rooms.map(convertCadRoomToImported);
     }
+    try {
+      const saved = localStorage.getItem('estimate_cad_imported_rooms');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
     return [];
   });
 
@@ -93,6 +100,27 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
       return next;
     });
   };
+
+  // Реакция на перенос комнат с чертежа в раздел «Обмер»
+  useEffect(() => {
+    const handleTransferred = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setImportedRooms(e.detail);
+        if (isCanvasSyncEnabled) {
+          const cadRooms = convertImportedRoomsToCadRooms(e.detail);
+          onRoomsChange(cadRooms);
+        }
+        try {
+          localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(e.detail));
+        } catch {}
+        if (e.detail.length > 0) {
+          showToast(`🎉 Перенесено ${e.detail.length} помещений из чертежа!`);
+        }
+      }
+    };
+    window.addEventListener('estimate_cad_rooms_transferred', handleTransferred);
+    return () => window.removeEventListener('estimate_cad_rooms_transferred', handleTransferred);
+  }, [isCanvasSyncEnabled, onRoomsChange]);
 
   // ID развернутой карточки для тонкой настройки дверей и окон
   const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);

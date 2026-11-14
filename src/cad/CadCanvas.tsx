@@ -1546,19 +1546,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
 
 
-  // Защита целостности: если на чертеже нет замкнутых стен (стен < 3) — комнат и их размеров быть не может!
-
-  useEffect(() => {
-
-    if (allWalls.length < 3 && rooms.length > 0) {
-
-      setRooms([]);
-
-      if (onRoomsUpdated) onRoomsUpdated([]);
-
-    }
-
-  }, [allWalls.length, rooms.length, onRoomsUpdated]);
+  // Защита целостности: ручные и импортированные комнаты не удаляются при отсутствии стен!
 
 
 
@@ -12294,9 +12282,21 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
         {/* Плавающий сворачиваемый виджет «Данные с чертежа» (Шпаргалка) */}
 
-        {(backdrop || cheatSheetData || isCheatSheetLoading) && (
+        {(backdrop || cheatSheetData || isCheatSheetLoading || (rawDetectedRooms && rawDetectedRooms.length > 0)) && (
 
-          <div className="absolute top-4 right-4 z-40 flex flex-col items-end">
+          <div className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
+
+            {rawDetectedRooms && rawDetectedRooms.length > 0 && !isDetectedModalOpen && (
+              <button
+                type="button"
+                onClick={() => setIsDetectedModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-lg border border-white/20 font-bold text-xs transition-all hover:scale-102 cursor-pointer animate-in fade-in"
+                title="Открыть экспликацию помещений с чертежа"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Экспликация ({rawDetectedRooms.length} комн.)</span>
+              </button>
+            )}
 
             {!isCheatSheetOpen ? (
 
@@ -15949,6 +15949,7 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             const cadRooms = convertImportedRoomsToCadRooms(appliedRooms);
             setRooms(cadRooms);
             if (onRoomsUpdated) onRoomsUpdated(cadRooms);
+            window.dispatchEvent(new CustomEvent('estimate_cad_rooms_transferred', { detail: appliedRooms }));
             showToast(`🎉 ${appliedRooms.length} помещений перенесены в раздел «1. Обмер»!`);
           }}
         />

@@ -718,18 +718,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
             </div>
           </div>
 
-          {/* Быстрая загрузка эталона Дангиреева */}
-          <div className="flex items-center justify-between pt-1.5 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={handleLoadDangireevaTemplate}
-              className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100/80 px-2 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Загрузить реквизиты и эталонную смету ул. Дангиреева (954 226.40 ₽)"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>⚡ Эталон Дангиреева (954 226 ₽)</span>
-            </button>
-
+          {/* Быстрая загрузка прайс-базы */}
+          <div className="flex items-center justify-end pt-1.5 border-t border-slate-100">
             {onOpenConstructor && (
               <button
                 onClick={onOpenConstructor}
@@ -754,7 +744,7 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
             }`}
           >
             <Sparkles className="w-3 h-3 text-emerald-600" />
-            <span>Эталон 118 строк</span>
+            <span>Сводная смета (118)</span>
           </button>
           <button
             onClick={() => setEstimateMode('by_rooms')}
@@ -1116,10 +1106,10 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
               )}
             </div>
 
-            {/* 12 Этапов эталонной сметы */}
+            {/* 12 Этапов сводной сметы */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider px-1">
-                Разделы работ эталонной сметы (118 позиций):
+                Разделы работ сводной сметы (118 позиций):
               </div>
               {turnkey118Result.stages.map((stage, sIdx) => {
                 const isStageOpen = expandedCats[`stage_${sIdx}`] !== false;
@@ -1699,7 +1689,7 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                       <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                         <Hammer className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>Смета на ремонтно-отделочные работы (Договорная смета)</span>
-                        <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.2 rounded font-bold">Эталон 954 тыс. ₽</span>
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.2 rounded font-bold">Сводная смета</span>
                       </div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         Выгружаются только строительные и отделочные работы по помещениям. Точное соответствие сумме договора без наценки материалов.

@@ -237,6 +237,7 @@ export const App: React.FC = () => {
       localStorage.removeItem('estimate_cad_backdrop_v2');
       localStorage.removeItem('estimate_cad_backdrop_img');
       localStorage.removeItem('estimate_cad_cheatsheet_data');
+      window.dispatchEvent(new CustomEvent('estimate_cad_rooms_transferred', { detail: [] }));
     } catch {}
     setCadResetKey(prev => prev + 1);
   }, []);

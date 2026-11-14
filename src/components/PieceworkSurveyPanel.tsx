@@ -1894,15 +1894,6 @@ export const PieceworkSurveyPanel: React.FC<PieceworkSurveyPanelProps> = ({
               <span>Сброс</span>
             </button>
 
-            <button
-              onClick={handleLoadBenchmark}
-              className="px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-50 rounded-lg border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
-              title="Загрузить эталонные количества для квартиры 63 м²"
-            >
-              <Sparkles className="w-3 h-3 text-amber-600" />
-              <span>Эталон 63 м²</span>
-            </button>
-
             {onNavigateToEstimate && (
               <button
                 onClick={onNavigateToEstimate}

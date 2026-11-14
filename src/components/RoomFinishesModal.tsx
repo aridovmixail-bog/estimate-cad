@@ -810,16 +810,6 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                           <Copy className="w-3 h-3" />
                           <span>Как новый пирог...</span>
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleResetToBenchmark(item.pirog!.id)}
-                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-[11px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Сбросить к заводским расценкам сметы Краснодара"
-                        >
-                          <RotateCcw className="w-3 h-3" />
-                          <span>Сбросить к эталону</span>
-                        </button>
                       </div>
                     </div>
 
