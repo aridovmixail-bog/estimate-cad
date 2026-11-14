@@ -516,116 +516,17 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. СПИСОК ПОМЕЩЕНИЙ (ДВОЙНОЙ КЛИК ОТКРЫВАЕТ ОКНО РАБОТ) */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-              Помещения ({rooms.length})
-            </span>
-            <span className="text-[10px] text-blue-600 font-medium">
-              Клик для выбора отделки
-            </span>
-          </div>
-
-          {rooms.length === 0 ? (
-            <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 text-center text-xs text-slate-500 space-y-2">
-              <Home className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="font-semibold text-slate-700">На плане пока нет комнат</p>
-              <p className="text-[11px] text-slate-400">
-                Чертите стены на холсте — комната замкнется автоматически, появится в списке, а двойным кликом откроются работы по стенам, полу и потолку.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {rooms.map((room, idx) => {
-                const roomSel = selections[room.id]?.selectedPirogIds || {};
-                const allPirogsList = effectivePirogs;
-                const ceilingPirog = allPirogsList.find(p => p.id === roomSel.ceiling);
-                const wallsPirog = allPirogsList.find(p => p.id === roomSel.walls);
-                const floorPirog = allPirogsList.find(p => p.id === roomSel.floor);
-
-                return (
-                  <div 
-                    key={room.id}
-                    onClick={() => setActiveFinishesRoom(room)}
-                    className="p-3 bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-blue-400 rounded-xl transition-all shadow-2xs cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-slate-900 group-hover:text-blue-700 transition-colors">
-                          {room.name}
-                        </span>
-                        <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
-                          #{idx + 1}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveFinishesRoom(room);
-                        }}
-                        className="text-[10px] font-bold text-blue-600 group-hover:text-blue-800 bg-blue-50 group-hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 flex items-center gap-1 transition-colors"
-                      >
-                        <Layers className="w-3 h-3" />
-                        <span>Отделка</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Геометрия комнаты */}
-                    <div className="grid grid-cols-3 gap-1 text-[11px] font-mono text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100 mb-2">
-                      <div>Пол: <b className="text-blue-700">{room.floorArea}м²</b></div>
-                      <div>Стены: <b className="text-emerald-700">{room.wallNetArea}м²</b></div>
-                      <div>P: <b className="text-slate-800">{room.perimeter}м</b></div>
-                    </div>
-
-                    {/* Выбранные пироги работ */}
-                    <div className="space-y-1 text-[10px]">
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>☁️ Потолок:</span>
-                        <span className="font-medium text-slate-900 truncate max-w-[170px]" title={ceilingPirog?.name}>
-                          {ceilingPirog ? ceilingPirog.name : '— Без отделки —'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>🧱 Стены:</span>
-                        <span className="font-medium text-slate-900 truncate max-w-[170px]" title={wallsPirog?.name}>
-                          {wallsPirog ? wallsPirog.name : '— Без отделки —'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>🪵 Пол:</span>
-                        <span className="font-medium text-slate-900 truncate max-w-[170px]" title={floorPirog?.name}>
-                          {floorPirog ? floorPirog.name : '— Без отделки —'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        {/* 2. ИНЛАЙН-ОБМЕР ПОМЕЩЕНИЙ С ВЫБОРОМ ИЗ СПИСКА И ВЫЧЕТОМ ПРОЕМОВ */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <InlineRoomSurveyPanel
+            rooms={rooms}
+            onRoomsChange={handleRoomsUpdated}
+            globalCeilingHeight={ceilingHeight}
+            onOpenRoomFinishes={(room) => setActiveFinishesRoom(room)}
+            onNavigateToEstimate={() => setSidebarTab('estimate')}
+            selections={selections}
+          />
         </div>
-
-        {/* Итого по объекту */}
-        {rooms.length > 0 && (
-          <div className="p-3 bg-blue-50/80 border-t border-blue-200 text-xs font-mono space-y-1 shrink-0">
-            <div className="flex justify-between text-slate-700">
-              <span className="font-sans font-bold">Площадь пола (S общ):</span>
-              <span className="font-bold text-blue-700">{totalFloorArea.toFixed(2)} м²</span>
-            </div>
-            <div className="flex justify-between text-slate-600 text-[11px]">
-              <span className="font-sans">Стены (чистые под отделку):</span>
-              <span className="font-bold text-emerald-700">{totalWallNetArea.toFixed(2)} м²</span>
-            </div>
-            <div className="flex justify-between text-slate-500 text-[11px]">
-              <span className="font-sans">Общий периметр (плинтус):</span>
-              <span>{totalPerimeter.toFixed(2)} м</span>
-            </div>
-          </div>
-        )}
         </>)}
       </div>
 

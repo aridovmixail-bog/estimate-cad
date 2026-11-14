@@ -413,7 +413,7 @@ export const InlineRoomSurveyPanel: React.FC<InlineRoomSurveyPanelProps> = ({
             Помещения ({importedRooms.length})
           </span>
           <span className="text-[10px] text-slate-500">
-            Кликните по названию для правки
+            Площади, двери и окна
           </span>
         </div>
 

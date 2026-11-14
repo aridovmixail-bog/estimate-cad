@@ -350,9 +350,9 @@ export function createImportedRoom(params: {
   const id = params.id || `imp_room_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
   const floorArea = Math.max(0, params.floorArea || 0);
   const ceilingHeight = Math.max(1.8, params.ceilingHeight || 3.04);
-  const perimeter = params.perimeter !== undefined && params.perimeter > 0
+  const perimeter = params.perimeter !== undefined
     ? params.perimeter
-    : estimatePerimeterFromArea(floorArea);
+    : (floorArea > 0 ? estimatePerimeterFromArea(floorArea) : 0);
 
   const lower = params.name.toLowerCase();
   const isWet = lower.includes('ванн') || lower.includes('туалет') || lower.includes('санузел') || lower.includes('душ');
