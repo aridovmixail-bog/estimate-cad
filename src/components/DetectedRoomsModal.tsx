@@ -99,6 +99,17 @@ export const DetectedRoomsModal: React.FC<DetectedRoomsModalProps> = ({
     try {
       localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(editableRooms));
     } catch {}
+
+    // Извлекаем высоту потолков из переносимых комнат
+    const foundHeight = editableRooms.find(r => r.ceilingHeight && Number(r.ceilingHeight) > 0)?.ceilingHeight;
+    if (foundHeight) {
+      const hNum = Number(Number(foundHeight).toFixed(2));
+      try {
+        localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(hNum));
+      } catch {}
+      window.dispatchEvent(new CustomEvent('estimate_cad_ceiling_height_updated', { detail: hNum }));
+    }
+
     window.dispatchEvent(new CustomEvent('estimate_cad_rooms_transferred', { detail: editableRooms }));
     onApplyToSurvey(editableRooms);
     onClose();

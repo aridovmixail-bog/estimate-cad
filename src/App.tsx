@@ -191,7 +191,61 @@ export const App: React.FC = () => {
   const [cadResetKey, setCadResetKey] = useState<number>(0);
 
   // Параметры высоты
-  const [ceilingHeight, setCeilingHeight] = useState<number>(2.70);
+  const [ceilingHeight, setCeilingHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('estimate_cad_ceiling_height');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (val && val > 0) return Number(val.toFixed(2));
+      }
+    } catch {}
+    return 2.70;
+  });
+
+  // Автоматическое обновление высоты потолков при переносе данных с чертежа
+  useEffect(() => {
+    const handleHeightUpdate = (e: any) => {
+      const h = Number(e.detail);
+      if (h && h > 0 && !isNaN(h)) {
+        const rounded = Number(h.toFixed(2));
+        setCeilingHeight(rounded);
+        try {
+          localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(rounded));
+        } catch {}
+      }
+    };
+
+    const handleRoomsTransferred = (e: any) => {
+      let roomsList: any[] = [];
+      let newH: number | null = null;
+      if (Array.isArray(e.detail)) {
+        roomsList = e.detail;
+      } else if (e.detail && typeof e.detail === 'object') {
+        if (Array.isArray(e.detail.rooms)) roomsList = e.detail.rooms;
+        if (e.detail.ceilingHeight) newH = Number(e.detail.ceilingHeight);
+      }
+
+      if (!newH && roomsList.length > 0) {
+        const found = roomsList.find(r => r.ceilingHeight && Number(r.ceilingHeight) > 0);
+        if (found) newH = Number(found.ceilingHeight);
+      }
+
+      if (newH && newH > 0 && !isNaN(newH)) {
+        const rounded = Number(newH.toFixed(2));
+        setCeilingHeight(rounded);
+        try {
+          localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(rounded));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('estimate_cad_ceiling_height_updated', handleHeightUpdate);
+    window.addEventListener('estimate_cad_rooms_transferred', handleRoomsTransferred);
+    return () => {
+      window.removeEventListener('estimate_cad_ceiling_height_updated', handleHeightUpdate);
+      window.removeEventListener('estimate_cad_rooms_transferred', handleRoomsTransferred);
+    };
+  }, []);
 
   // Стандартные размеры двери (константы: 0.80 × 2.05 м)
   const doorHeight = 2.05;
@@ -222,6 +276,9 @@ export const App: React.FC = () => {
     const emptyClient = getEmptyClientInfo();
     setClientInfo(emptyClient);
     setCeilingHeight(2.70);
+    try {
+      localStorage.removeItem('estimate_cad_ceiling_height');
+    } catch {}
     try {
       localStorage.setItem(STORAGE_KEY_CLIENT, JSON.stringify(emptyClient));
       localStorage.removeItem(STORAGE_KEY_SELECTIONS);
@@ -517,7 +574,13 @@ export const App: React.FC = () => {
                 min="2.0"
                 max="6.0"
                 value={ceilingHeight}
-                onChange={(e) => setCeilingHeight(parsePositiveNumber(e.target.value, 2.70))}
+                onChange={(e) => {
+                  const val = parsePositiveNumber(e.target.value, 2.70);
+                  setCeilingHeight(val);
+                  try {
+                    localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(val));
+                  } catch {}
+                }}
                 className="w-16 px-2 py-1 text-xs font-mono font-bold text-center bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
               />
               <span className="text-xs text-slate-500 font-bold">м</span>
@@ -558,6 +621,12 @@ export const App: React.FC = () => {
         <CadCanvas 
           key={cadResetKey}
           ceilingHeight={ceilingHeight}
+          onCeilingHeightChange={(newH) => {
+            setCeilingHeight(newH);
+            try {
+              localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(newH));
+            } catch {}
+          }}
           doorDefaultHeight={doorHeight}
           doorDefaultWidth={doorWidth}
           windowWidth={1.40}

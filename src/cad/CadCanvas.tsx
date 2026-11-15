@@ -232,6 +232,7 @@ interface CadCanvasProps {
   onOpenRoomFinishes?: (room: Room) => void;
 
   onClearAll?: () => void;
+  onCeilingHeightChange?: (height: number) => void;
 
   onNavigateToEstimate?: () => void;
 
@@ -305,6 +306,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
   onOpenRoomFinishes,
   onClearAll,
+  onCeilingHeightChange,
   externalRooms
 
 }) => {
@@ -15946,6 +15948,17 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             try {
               localStorage.setItem('estimate_cad_imported_rooms', JSON.stringify(appliedRooms));
             } catch {}
+            const foundHeight = appliedRooms.find(r => r.ceilingHeight && Number(r.ceilingHeight) > 0)?.ceilingHeight;
+            if (foundHeight) {
+              const hNum = Number(Number(foundHeight).toFixed(2));
+              try {
+                localStorage.setItem('estimate_cad_ceiling_height', JSON.stringify(hNum));
+              } catch {}
+              if (onCeilingHeightChange) {
+                onCeilingHeightChange(hNum);
+              }
+              window.dispatchEvent(new CustomEvent('estimate_cad_ceiling_height_updated', { detail: hNum }));
+            }
             const cadRooms = convertImportedRoomsToCadRooms(appliedRooms);
             setRooms(cadRooms);
             if (onRoomsUpdated) onRoomsUpdated(cadRooms);
