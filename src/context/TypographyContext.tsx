@@ -12,8 +12,8 @@ interface TypographyContextType {
 
 const SCALE_FACTORS: Record<FontScale, number> = {
   sm: 1.0,
-  md: 1.30,
-  lg: 1.65,
+  md: 1.25,
+  lg: 1.55,
 };
 
 const TypographyContext = createContext<TypographyContextType>({
@@ -62,11 +62,11 @@ export const TypographyProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Scaling html root font-size smoothly scales all Tailwind rem units across the app
       if (fontScale === 'sm') {
-        root.style.fontSize = '14px';
+        root.style.fontSize = '13.5px';
       } else if (fontScale === 'md') {
-        root.style.fontSize = '16px';
+        root.style.fontSize = '14.5px';
       } else if (fontScale === 'lg') {
-        root.style.fontSize = '18.5px';
+        root.style.fontSize = '16px';
       }
     }
   }, [fontScale, scaleFactor]);
