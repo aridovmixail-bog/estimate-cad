@@ -16,7 +16,9 @@ interface CustomPirogCreatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultCategory?: PirogCategory;
+  initialPirog?: PirogDefinition | null;
   onSaveNewPirog: (newPirog: PirogDefinition) => void;
+  onDeletePirog?: (pirogId: string) => void;
 }
 
 const CATEGORY_OPTIONS: { id: PirogCategory; label: string; icon: string; defaultMultiplier: MultiplierType }[] = [
@@ -41,7 +43,9 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
   isOpen,
   onClose,
   defaultCategory = 'floor',
-  onSaveNewPirog
+  initialPirog = null,
+  onSaveNewPirog,
+  onDeletePirog
 }) => {
   const [category, setCategory] = useState<PirogCategory>(defaultCategory);
   const [name, setName] = useState<string>('');
@@ -52,23 +56,31 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
 
   useEffect(() => {
     if (isOpen) {
-      setCategory(defaultCategory);
-      setName('');
-      setDescription('');
+      if (initialPirog) {
+        setCategory(initialPirog.category);
+        setName(initialPirog.name);
+        setDescription(initialPirog.description || '');
+        setWorks(JSON.parse(JSON.stringify(initialPirog.works || [])));
+        setMaterials(JSON.parse(JSON.stringify(initialPirog.materials || [])));
+      } else {
+        setCategory(defaultCategory);
+        setName('');
+        setDescription('');
 
-      const defMul = CATEGORY_OPTIONS.find(c => c.id === defaultCategory)?.defaultMultiplier || 'floorArea';
-      setWorks([
-        {
-          id: `w_custom_${Date.now()}_1`,
-          name: '',
-          unit: 'м²',
-          defaultUnitPrice: 500,
-          multiplierType: defMul
-        }
-      ]);
-      setMaterials([]);
+        const defMul = CATEGORY_OPTIONS.find(c => c.id === defaultCategory)?.defaultMultiplier || 'floorArea';
+        setWorks([
+          {
+            id: `w_custom_${Date.now()}_1`,
+            name: '',
+            unit: 'м²',
+            defaultUnitPrice: 500,
+            multiplierType: defMul
+          }
+        ]);
+        setMaterials([]);
+      }
     }
-  }, [isOpen, defaultCategory]);
+  }, [isOpen, defaultCategory, initialPirog]);
 
   if (!isOpen) return null;
 
@@ -133,7 +145,7 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
     const validMaterials = materials.filter(m => m.name.trim().length > 0);
 
     const newPirog: PirogDefinition = {
-      id: `CUSTOM_${category.toUpperCase()}_${Date.now()}`,
+      id: initialPirog ? initialPirog.id : `CUSTOM_${category.toUpperCase()}_${Date.now()}`,
       name: trimmedName,
       category,
       description: description.trim() || undefined,
@@ -160,10 +172,10 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
             </div>
             <div>
               <h2 className="text-base font-extrabold flex items-center gap-2">
-                <span>Конструктор нового пирога отделки</span>
+                <span>{initialPirog ? 'Редактирование пирога отделки' : 'Конструктор нового пирога отделки'}</span>
               </h2>
               <p className="text-xs text-blue-100">
-                Задайте категорию, название и наполните пирог своими работами и расценками.
+                {initialPirog ? 'Изменение состава работ, расценок и материалов текущего пирога.' : 'Задайте категорию, название и наполните пирог своими работами и расценками.'}
               </p>
             </div>
           </div>
@@ -416,13 +428,31 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
 
         {/* Подвал */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between shrink-0 shadow-md">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-          >
-            Отмена
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+            >
+              Отмена
+            </button>
+            {initialPirog && onDeletePirog && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`Удалить пирог «${initialPirog.name}»?`)) {
+                    onDeletePirog(initialPirog.id);
+                    onClose();
+                  }
+                }}
+                className="px-3 py-2 text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Удалить этот пирог"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Удалить пирог</span>
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
@@ -431,7 +461,7 @@ export const CustomPirogCreatorModal: React.FC<CustomPirogCreatorModalProps> = (
             className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-98"
           >
             <Check className="w-4 h-4" />
-            <span>💾 Создать и сохранить пирог</span>
+            <span>{initialPirog ? '💾 Сохранить изменения' : '💾 Создать и сохранить пирог'}</span>
           </button>
         </div>
       </div>

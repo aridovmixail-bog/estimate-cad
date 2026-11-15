@@ -351,6 +351,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
 
   // Модалка для создания нового пирога отделки
   const [newPirogCategory, setNewPirogCategory] = useState<string | null>(null);
+  const [editingPirog, setEditingPirog] = useState<PirogDefinition | null>(null);
   const [isCustomCreatorOpen, setIsCustomCreatorOpen] = useState<boolean>(false);
   const [creatorDefaultCategory, setCreatorDefaultCategory] = useState<PirogCategory>('floor');
   const [newPirogName, setNewPirogName] = useState<string>('');
@@ -375,9 +376,60 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
     return room.windowsList.reduce((acc: number, w: any) => acc + (w.width + 2 * w.height), 0);
   }, [room.windowsList]);
 
-  // Мутации работ и материалов активного пирога
-  const handleUpdateWorkField = (pirogId: string, workId: string, field: keyof WorkTemplate, value: any) => {
+  // Вспомогательный метод автосохранения любых изменений в пирогах
+  const updateAndPersistPirogs = (updater: (prev: PirogDefinition[]) => PirogDefinition[]) => {
     setAllPirogs(prev => {
+      const next = updater(prev);
+      try {
+        const saved = loadEffectivePirogs();
+        next.forEach(np => {
+          const idx = saved.findIndex(s => s.id === np.id);
+          if (idx !== -1) saved[idx] = np;
+          else saved.push(np);
+        });
+        localStorage.setItem(STORAGE_CUSTOM_PIROGS, JSON.stringify(saved));
+      } catch (err) {
+        console.error('Failed to auto-save pirog', err);
+      }
+      onPirogsUpdated?.(next);
+      return next;
+    });
+  };
+
+  const handleUpdatePirogName = (pirogId: string, newName: string) => {
+    updateAndPersistPirogs(prev => {
+      return prev.map(p => {
+        if (p.id !== pirogId) return p;
+        return { ...p, name: newName };
+      });
+    });
+  };
+
+  const handleDeletePirog = (pirogId: string, category: string) => {
+    const target = allPirogs.find(p => p.id === pirogId);
+    const targetName = target?.name || 'этот пирог';
+    if (!window.confirm(`Вы действительно хотите удалить ${targetName} из списка доступных пирогов?`)) {
+      return;
+    }
+    updateAndPersistPirogs(prev => prev.filter(p => p.id !== pirogId));
+    try {
+      const raw = localStorage.getItem(STORAGE_CUSTOM_PIROGS);
+      if (raw) {
+        let list: PirogDefinition[] = JSON.parse(raw);
+        list = list.filter(p => p.id !== pirogId);
+        localStorage.setItem(STORAGE_CUSTOM_PIROGS, JSON.stringify(list));
+      }
+    } catch {}
+    setLocalPirogIds(prev => ({
+      ...prev,
+      [category]: null
+    }));
+    showToast(`🗑 Пирог «${targetName.slice(0, 30)}...» удален!`);
+  };
+
+  // Мутации работ и материалов активного пирога (с автосохранением)
+  const handleUpdateWorkField = (pirogId: string, workId: string, field: keyof WorkTemplate, value: any) => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -401,7 +453,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
       multiplierType: defaultMult
     };
 
-    setAllPirogs(prev => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -410,10 +462,11 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
         };
       });
     });
+    showToast('➕ Работа добавлена в пирог');
   };
 
   const handleDeleteWorkRow = (pirogId: string, workId: string) => {
-    setAllPirogs(prev => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -422,10 +475,11 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
         };
       });
     });
+    showToast('🗑 Работа удалена из пирога');
   };
 
   const handleUpdateMaterialField = (pirogId: string, matId: string, field: keyof MaterialTemplate, value: any) => {
-    setAllPirogs(prev => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -450,7 +504,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
       multiplierType: defaultMult
     };
 
-    setAllPirogs(prev => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -459,10 +513,11 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
         };
       });
     });
+    showToast('➕ Материал добавлен в пирог');
   };
 
   const handleDeleteMaterialRow = (pirogId: string, matId: string) => {
-    setAllPirogs(prev => {
+    updateAndPersistPirogs(prev => {
       return prev.map(p => {
         if (p.id !== pirogId) return p;
         return {
@@ -471,6 +526,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
         };
       });
     });
+    showToast('🗑 Материал удален из пирога');
   };
 
   // Сохранение изменений в текущий пирог
@@ -600,6 +656,16 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
   }, [room, localPirogIds, allPirogs, tariff, regionalCoeff]);
 
   const handleApply = () => {
+    try {
+      const saved = loadEffectivePirogs();
+      allPirogs.forEach(np => {
+        const idx = saved.findIndex(s => s.id === np.id);
+        if (idx !== -1) saved[idx] = np;
+        else saved.push(np);
+      });
+      localStorage.setItem(STORAGE_CUSTOM_PIROGS, JSON.stringify(saved));
+    } catch {}
+    onPirogsUpdated?.(allPirogs);
     onSaveFinishes(room.id, localPirogIds);
     onClose();
   };
@@ -760,11 +826,26 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Кнопка показа / скрытия состава работ и редактирования */}
+                  {/* Кнопки редактирования и состава пирога */}
                   {item.pirog && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedSections(prev => ({ ...prev, [item.category]: !prev[item.category] }))}
+                    <div className="flex items-center gap-1 shrink-0 self-end mb-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPirog(item.pirog);
+                          setCreatorDefaultCategory(item.category as PirogCategory);
+                          setIsCustomCreatorOpen(true);
+                        }}
+                        className="p-1.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 hover:border-blue-400 rounded-lg shadow-2xs flex items-center gap-1 text-[11px] font-bold cursor-pointer transition-colors"
+                        title="Редактировать этот пирог в конструкторе (состав, расценки, материалы)"
+                      >
+                        <Pencil className="w-3 h-3 text-blue-600" />
+                        <span className="text-[10px]">Редактор</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSections(prev => ({ ...prev, [item.category]: !prev[item.category] }))}
                       className={`p-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shrink-0 cursor-pointer self-end mb-0.5 border ${
                         isExpanded ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 hover:text-blue-700 hover:bg-slate-100 border-slate-200 shadow-2xs'
                       }`}
@@ -774,6 +855,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                       <span className="text-[10px]">{isExpanded ? 'Свернуть' : 'Состав и цены'}</span>
                       {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </button>
+                    </div>
                   )}
                 </div>
 
@@ -781,35 +863,73 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                 {isExpanded && item.pirog && (
                   <div className="p-3 bg-white space-y-3 text-xs animate-in fade-in duration-150">
                     
-                    {/* Панель быстрых действий по пирогу */}
-                    <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
-                      <div className="text-[11px] text-slate-500 font-medium italic truncate max-w-xs">
-                        {item.pirog.description || item.pirog.name}
+                    {/* Панель быстрых действий и редактирования пирога */}
+                    <div className="flex flex-col gap-2 pb-2.5 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-500 shrink-0">Пирог:</span>
+                        <input
+                          type="text"
+                          value={item.pirog.name}
+                          onChange={e => handleUpdatePirogName(item.pirog!.id, e.target.value)}
+                          className="flex-1 px-2.5 py-1 text-xs font-bold text-slate-900 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-lg focus:outline-none transition-colors"
+                          placeholder="Название пирога отделки..."
+                          title="Редактировать название пирога"
+                        />
                       </div>
 
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => handleSaveCurrentPirog(item.pirog!.id)}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Сохранить измененные расценки и список работ в этот пирог на будущее"
-                        >
-                          <Save className="w-3 h-3" />
-                          <span>Сохранить в пирог</span>
-                        </button>
+                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                        <div className="text-[11px] text-slate-400 font-medium italic truncate max-w-xs">
+                          {item.pirog.description || 'Состав работ и черновых материалов'}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewPirogCategory(item.category);
-                            setNewPirogName(`${item.pirog!.name.split('—')[0].trim()} (свой вариант)`);
-                          }}
-                          className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Сохранить этот состав как отдельный новый пирог"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Как новый пирог...</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPirog(item.pirog);
+                              setCreatorDefaultCategory(item.category as PirogCategory);
+                              setIsCustomCreatorOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Открыть полный визуальный конструктор для редактирования этого пирога"
+                          >
+                            <Pencil className="w-3 h-3 text-blue-600" />
+                            <span>В конструкторе...</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSaveCurrentPirog(item.pirog!.id)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Принудительно сохранить пирог в базу"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>Сохранить в пирог</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewPirogCategory(item.category);
+                              setNewPirogName(`${item.pirog!.name.split('—')[0].trim()} (свой вариант)`);
+                            }}
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold text-[11px] rounded-lg shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Сохранить этот состав как отдельный новый пирог"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>Как новый пирог...</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePirog(item.pirog!.id, item.category)}
+                            className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-[11px] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Удалить этот пирог из списка доступных вариантов"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Удалить пирог</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1104,24 +1224,33 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
           </div>
         </div>
 
-        {/* МОДАЛЬНЫЙ КОНСТРУКТОР ПИРОГА С НУЛЯ */}
+        {/* МОДАЛЬНЫЙ КОНСТРУКТОР ПИРОГА С НУЛЯ / РЕДАКТОР ТЕКУЩЕГО ПИРОГА */}
         <CustomPirogCreatorModal
           isOpen={isCustomCreatorOpen}
-          onClose={() => setIsCustomCreatorOpen(false)}
+          onClose={() => {
+            setIsCustomCreatorOpen(false);
+            setEditingPirog(null);
+          }}
           defaultCategory={creatorDefaultCategory}
-          onSaveNewPirog={(newPirog) => {
-            const updated = [...allPirogs, newPirog];
-            onPirogsUpdated(updated);
-            try {
-              const saved = loadEffectivePirogs();
-              const existingIdx = saved.findIndex(p => p.id === newPirog.id);
-              if (existingIdx >= 0) saved[existingIdx] = newPirog;
-              else saved.push(newPirog);
-              localStorage.setItem('estimate_cad_custom_pirogs_v2', JSON.stringify(saved));
-            } catch {}
-            setLocalPirogIds(prev => ({ ...prev, [newPirog.category]: newPirog.id }));
-            setExpandedSections(prev => ({ ...prev, [newPirog.category]: true }));
-            showToast(`🎉 Пирог «${newPirog.name}» успешно создан и применен!`);
+          initialPirog={editingPirog}
+          onSaveNewPirog={(savedPirog) => {
+            updateAndPersistPirogs(prev => {
+              const idx = prev.findIndex(p => p.id === savedPirog.id);
+              if (idx !== -1) {
+                const next = [...prev];
+                next[idx] = savedPirog;
+                return next;
+              }
+              return [...prev, savedPirog];
+            });
+            setLocalPirogIds(prev => ({ ...prev, [savedPirog.category]: savedPirog.id }));
+            setExpandedSections(prev => ({ ...prev, [savedPirog.category]: true }));
+            showToast(`🎉 Пирог «${savedPirog.name}» успешно сохранен!`);
+          }}
+          onDeletePirog={(pirogId) => {
+            if (editingPirog) {
+              handleDeletePirog(pirogId, editingPirog.category);
+            }
           }}
         />
       </div>
