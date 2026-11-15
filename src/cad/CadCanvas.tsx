@@ -50,6 +50,7 @@ import { SandwichConstructorModal } from '../components/SandwichConstructorModal
 
 import { PlanNotesSidePanel } from '../components/PlanNotesSidePanel';
 import { DetectedRoomsModal } from '../components/DetectedRoomsModal';
+import { FixtureEditModal } from './FixtureEditModal';
 
 import { vectorizePlanImage } from './planVectorizer';
 
@@ -404,10 +405,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
   const [fixtureRotation, setFixtureRotation] = useState<number>(0);
 
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
-
   const [hoveredFixtureId, setHoveredFixtureId] = useState<string | null>(null);
-
   const [draggingFixture, setDraggingFixture] = useState<{ id: string; offsetWorld: Point } | null>(null);
+  const [editingFixtureModalTarget, setEditingFixtureModalTarget] = useState<Fixture | null>(null);
 
   const [fixtureCornerInput, setFixtureCornerInput] = useState<string>('');
 
@@ -2967,13 +2967,16 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
 
-    // 3. Hover на вершины, проемы и размеры
-
+    // 3. Hover на вершины, проемы, размеры и отметки обозначений
     if (!currentWallStart) {
-
       const nearDim = findDimHitBoxAtScreenPos(screenX, screenY);
-
       setHoveredDimKey(nearDim ? nearDim.key : null);
+      if (nearDim && nearDim.fixtureId) {
+        setHoveredFixtureId(nearDim.fixtureId);
+      } else {
+        const nearFix = findNearestFixture(rawWorld, fixtures, 0.45);
+        setHoveredFixtureId(nearFix ? nearFix.id : null);
+      }
 
 
 
@@ -3397,26 +3400,33 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
 
-      // 0.0. Захват размерного числа мышкой для свободного смещения (ГОСТ выноска с полочкой)
-
+      // 0.0. Захват отметки обозначения (выноски с полочкой) или размерного числа
       const hitDim = findDimHitBoxAtScreenPos(screenX, screenY);
-
       if (hitDim) {
-
+        if (hitDim.fixtureId) {
+          const targetFix = fixtures.find(f => f.id === hitDim.fixtureId);
+          if (targetFix) {
+            pushHistory();
+            setSelectedFixtureId(targetFix.id);
+            setSelectedWallId(null);
+            setSelectedOpening(null);
+            setSelectedVertex(null);
+            setSelectedRoomId(null);
+            setDraggingFixture({
+              id: targetFix.id,
+              offsetWorld: { x: targetFix.x - rawWorld.x, y: targetFix.y - rawWorld.y }
+            });
+            actionLogger.addLog('click', `Выбрано обозначение: ${targetFix.name}`, `Перемещение по стене`);
+            return;
+          }
+        }
         const currentOffset = manualDimOffsets[hitDim.key] || { x: 0, y: 0 };
-
         dragDimCandidateRef.current = {
-
           hitDim,
-
           mouseStart: { x: screenX, y: screenY },
-
           initialOffset: currentOffset
-
         };
-
         return;
-
       }
 
 
@@ -4004,23 +4014,32 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const handleDoubleClick = (e?: React.MouseEvent) => {
 
     if (e && canvasRef.current) {
-
       const rect = canvasRef.current.getBoundingClientRect();
-
       const sx = e.clientX - rect.left;
-
       const sy = e.clientY - rect.top;
+      const rawW = screenToWorld(sx, sy);
 
-
-
+      // 0. Двойной клик по отметке или размеру обозначения (выноска с полочкой, ярус привязки)
       let hitDim = findDimHitBoxAtScreenPos(sx, sy);
+      if (hitDim && hitDim.fixtureId) {
+        const targetFix = fixtures.find(f => f.id === hitDim.fixtureId);
+        if (targetFix) {
+          setSelectedFixtureId(targetFix.id);
+          setEditingFixtureModalTarget(targetFix);
+          return;
+        }
+      }
+
+      // 0.1. Двойной клик напрямую по самому обозначению на чертеже (розетка, выключатель, сантехника и т.д.)
+      const hitFixture = findNearestFixture(rawW, fixtures, 0.45);
+      if (hitFixture) {
+        setSelectedFixtureId(hitFixture.id);
+        setEditingFixtureModalTarget(hitFixture);
+        return;
+      }
 
       if (!hitDim) {
-
         // Запасной поиск: клик по стене рядом с размером (в пределах 24px)
-
-        const rawW = screenToWorld(sx, sy);
-
         const nearWall = findNearestWall(rawW, allWalls, scale);
 
         if (nearWall && nearWall.distPx < 24) {
@@ -4104,9 +4123,6 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
       // Двойной клик внутри комнаты — открывает окно работ и отделки
-
-      const rawW = screenToWorld(sx, sy);
-
       const clickedRoom = rooms.find(r => isPointInsidePolygon(rawW, r.points));
 
       if (clickedRoom) {
@@ -6552,7 +6568,9 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         dimensionUnit,
         selectedFixtureId,
         hoveredFixtureId,
-        undefined,
+        (hitBox) => {
+          dimHitBoxesRef.current.push(hitBox);
+        },
         Math.round(9.5 * fontScaleFactor * 10) / 10
       );
     });
@@ -6569,7 +6587,9 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         dimensionUnit,
         fix.id === selectedFixtureId,
         fix.id === hoveredFixtureId || draggingFixture?.id === fix.id,
-        undefined,
+        (hitBox) => {
+          dimHitBoxesRef.current.push(hitBox);
+        },
         Math.round(9.5 * fontScaleFactor * 10) / 10
       );
     });
@@ -15840,6 +15860,50 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         )}
 
         {/* ПОЛНОЭКРАННЫЙ КОНСТРУКТОР БУТЕРБРОДОВ (ПИРОГОВ) И МАТРИЧНАЯ БАЗА */}
+
+        {/* МОДАЛЬНОЕ ОКНО ПАРАМЕТРОВ ОБОЗНАЧЕНИЯ (ДВОЙНОЙ КЛИК ПО РОЗЕТКЕ / ОТМЕТКЕ) */}
+        <FixtureEditModal
+          isOpen={!!editingFixtureModalTarget}
+          fixture={editingFixtureModalTarget}
+          walls={allWalls}
+          rooms={rooms}
+          onClose={() => setEditingFixtureModalTarget(null)}
+          onSave={(updated) => {
+            pushHistory();
+            setFixtures(prev => prev.map(f => f.id === updated.id ? updated : f));
+            setSelectedFixtureId(updated.id);
+            showToast(`✅ Параметры «${updated.name}» сохранены`);
+          }}
+          onDelete={(fixtureId) => {
+            pushHistory();
+            setFixtures(prev => prev.filter(f => f.id !== fixtureId));
+            if (selectedFixtureId === fixtureId) setSelectedFixtureId(null);
+            showToast('🗑️ Обозначение удалено');
+          }}
+          onDuplicate={(fix) => {
+            pushHistory();
+            const wall = fix.wallId ? allWalls.find(w => w.id === fix.wallId) : null;
+            const wallLen = wall ? distance(wall.start, wall.end) : 0;
+            const newDist = wallLen > 0 ? Math.min(wallLen - 0.1, (fix.distanceFromCorner || 0.5) + 0.20) : (fix.distanceFromCorner || 0.5);
+            let newX = fix.x + 0.20;
+            let newY = fix.y;
+            if (wall && wallLen > 0) {
+              const t = newDist / wallLen;
+              newX = wall.start.x + (wall.end.x - wall.start.x) * t;
+              newY = wall.start.y + (wall.end.y - wall.start.y) * t;
+            }
+            const duplicated: Fixture = {
+              ...fix,
+              id: `fix_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              x: newX,
+              y: newY,
+              distanceFromCorner: Number(newDist.toFixed(3)),
+            };
+            setFixtures(prev => [...prev, duplicated]);
+            setSelectedFixtureId(duplicated.id);
+            showToast(`📋 Создана копия «${duplicated.name}» (+200 мм)`);
+          }}
+        />
 
         {/* МОДАЛЬНОЕ ОКНО ПРОВЕРКИ И РЕДАКТИРОВАНИЯ РАСПОЗНАННЫХ КОМНАТ С ЧЕРТЕЖА */}
         <DetectedRoomsModal

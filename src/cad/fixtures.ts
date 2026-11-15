@@ -676,8 +676,9 @@ function drawLeaderShelf(
   bottomText: string,
   inwardNorm: Point,
   maxTierPx: number = 40,
-  isHighlight: boolean = false
-) {
+  isHighlight: boolean = false,
+  fontSize: number = 9.0
+): { x: number; y: number; w: number; h: number } {
   ctx.save();
 
   // Выносим излом выноски дальше всех размерных ярусов и общих цепочек в чистое поле комнаты!
@@ -692,9 +693,11 @@ function drawLeaderShelf(
   // Если нормаль стены направлена влево (inwardNorm.x < -0.1), полочка идет влево, иначе вправо
   const shelfDir = inwardNorm.x < -0.1 ? -1 : 1;
 
-  ctx.font = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif';
+  const topFontPx = Math.max(10, Math.round(fontSize * 1.2));
+  const botFontPx = Math.max(9, Math.round(fontSize * 1.05));
+  ctx.font = `600 ${topFontPx}px system-ui, -apple-system, "Segoe UI", sans-serif`;
   const topW = ctx.measureText(topText).width;
-  ctx.font = 'bold 10px "Segoe UI", sans-serif';
+  ctx.font = `bold ${botFontPx}px "Segoe UI", sans-serif`;
   const botW = ctx.measureText(bottomText).width;
   const maxTextW = Math.max(topW, botW);
   const shelfLen = maxTextW + 14;
@@ -716,12 +719,16 @@ function drawLeaderShelf(
 
   // 3. Сплошная непрозрачная белая подложка под всей полочкой и текстом!
   const boxLeft = shelfDir > 0 ? elbowX : shelfEndX;
+  const boxW = shelfLen + 6;
+  const boxH = Math.max(30, topFontPx + botFontPx + 10);
+  const boxY = elbowY - 16;
+
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.roundRect(boxLeft - 3, elbowY - 16, shelfLen + 6, 32, 4);
+  ctx.roundRect(boxLeft - 3, boxY, boxW, boxH, 4);
   ctx.fill();
-  ctx.strokeStyle = isHighlight ? '#3b82f6' : 'rgba(203, 213, 225, 0.9)';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = isHighlight ? '#2563eb' : 'rgba(203, 213, 225, 0.9)';
+  ctx.lineWidth = isHighlight ? 1.5 : 0.8;
   ctx.stroke();
 
   // 4. Горизонтальная полочка
@@ -736,17 +743,24 @@ function drawLeaderShelf(
   const textLeftX = shelfDir > 0 ? elbowX + 5 : shelfEndX + 5;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'bottom';
-  ctx.font = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif';
+  ctx.font = `600 ${topFontPx}px system-ui, -apple-system, "Segoe UI", sans-serif`;
   ctx.fillStyle = isHighlight ? '#1d4ed8' : '#0f172a';
   ctx.fillText(topText, textLeftX, elbowY - 2);
 
   // 6. Текст под полочкой («H=300»)
   ctx.textBaseline = 'top';
-  ctx.font = 'bold 10px "Segoe UI", sans-serif';
+  ctx.font = `bold ${botFontPx}px "Segoe UI", sans-serif`;
   ctx.fillStyle = isHighlight ? '#2563eb' : '#475569';
   ctx.fillText(bottomText, textLeftX, elbowY + 2);
 
   ctx.restore();
+
+  return {
+    x: boxLeft - 3,
+    y: boxY,
+    w: boxW,
+    h: boxH
+  };
 }
 
 /**
@@ -908,10 +922,25 @@ export function drawWallFixtureTiers(
     // Линия-выноска с полочкой (выносится за пределы всех цепочек в свободное поле комнаты)
     const def = getFixtureDefinition(fix.type);
     const heightMm = Math.round((fix.installationHeight || def.defaultHeightFromFloor) * 1000);
-    const showLeader = isSel || isHov || fix.type === 'ac_power' || numTiers <= 4;
+    const shelfLabel = fix.customName || fix.name || def.shortLabel || def.name;
+    const shelfBox = drawLeaderShelf(ctx, fixScr, shelfLabel, `H=${heightMm}`, inwardNorm, maxTierPx, isSel, fontSize);
 
-    if (showLeader) {
-      drawLeaderShelf(ctx, fixScr, def.shortLabel, `H=${heightMm}`, inwardNorm, maxTierPx, isSel);
+    if (onRegisterHitBox && shelfBox) {
+      onRegisterHitBox({
+        key: `fixture_shelf_${fix.id}`,
+        wallId: wall.id,
+        segIndex: idx,
+        text: `${shelfLabel} H=${heightMm}`,
+        x: shelfBox.x + shelfBox.w / 2,
+        y: shelfBox.y + shelfBox.h / 2,
+        w: shelfBox.w,
+        h: shelfBox.h,
+        lineMid: { x: shelfBox.x + shelfBox.w / 2, y: shelfBox.y + shelfBox.h / 2 },
+        angle: 0,
+        segLenMeters: dist,
+        fixtureId: fix.id,
+        isFixtureTie: true
+      });
     }
   });
 
