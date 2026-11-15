@@ -6493,135 +6493,85 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
       dimHitBoxesRef.current = [];
-
       drawArchitecturalWallChains(ctx, allWalls, activeRooms, worldToScreen, scale, {
-
         unit: dimensionUnit,
-
         selectedWallId,
-
         hoveredWallId,
-
         fixtures,
-
         ghostFixture: ghostSnapped?.wallId ? { wallId: ghostSnapped.wallId, distanceFromCorner: ghostSnapped.distanceFromCorner } : undefined,
-
         manualOffsets: manualDimOffsets,
-
+        fontSize: Math.round(9.5 * fontScaleFactor * 10) / 10,
         onRegisterHitBox: (hitBox) => {
-
           dimHitBoxesRef.current.push(hitBox);
-
         }
-
       });
 
-
-
       // Подсветка активной или перетаскиваемой цифры размера
-
       if (hoveredDimKey || draggingDimKey) {
-
         const activeKey = draggingDimKey || hoveredDimKey;
-
         const hb = dimHitBoxesRef.current.find(b => b.key === activeKey);
-
         if (hb) {
-
           ctx.save();
-
           ctx.strokeStyle = '#2563eb';
-
           ctx.lineWidth = 1.5;
-
           ctx.strokeRect(hb.x - hb.w / 2 - 2, hb.y - hb.h / 2 - 1, hb.w + 4, hb.h + 2);
-
           ctx.restore();
-
         }
-
       }
 
       if (showRoomSpans && activeRooms.length > 0) {
-
-        drawRoomSpanDimensions(ctx, activeRooms, worldToScreen, scale, dimensionUnit, (hitBox) => {
-
-          dimHitBoxesRef.current.push(hitBox);
-
-        });
-
+        drawRoomSpanDimensions(
+          ctx, 
+          activeRooms, 
+          worldToScreen, 
+          scale, 
+          dimensionUnit, 
+          (hitBox) => {
+            dimHitBoxesRef.current.push(hitBox);
+          },
+          Math.round(9.5 * fontScaleFactor * 10) / 10
+        );
       }
 
-      drawCeilingHeightStamp(ctx, width, ceilingHeight);
-
+      drawCeilingHeightStamp(ctx, width, ceilingHeight, Math.round(18 * fontScaleFactor));
     } else {
-
       drawAllWallDimensionBadges(ctx, allWalls, worldToScreen, selectedWallId, hoveredWallId);
-
     }
 
-
-
     // 4. Отрисовка размерных привязок розеток и оборудования по ГОСТ (ярусы размеров по ГОСТ 21.501-2018)
-
     const wallsWithFixtures = allWalls.filter(w => fixtures.some(f => f.wallId === w.id));
-
     wallsWithFixtures.forEach(wall => {
-
       const room = activeRooms.find(r => r.walls?.some(w => w.id === wall.id));
-
       drawWallFixtureTiers(
-
         ctx,
-
         wall,
-
         fixtures,
-
         room,
-
         worldToScreen,
-
         scale,
-
         dimensionUnit,
-
         selectedFixtureId,
-
-        hoveredFixtureId
-
+        hoveredFixtureId,
+        undefined,
+        Math.round(9.5 * fontScaleFactor * 10) / 10
       );
-
     });
 
-
-
     // Для свободно стоящих объектов (ванна, унитаз, инсталляция, раковина, мебель)
-
     fixtures.filter(f => !f.wallId).forEach(fix => {
-
       drawFixtureDimensionTies(
-
         ctx,
-
         fix,
-
         allWalls,
-
         rooms,
-
         worldToScreen,
-
         scale,
-
         dimensionUnit,
-
         fix.id === selectedFixtureId,
-
-        fix.id === hoveredFixtureId || draggingFixture?.id === fix.id
-
+        fix.id === hoveredFixtureId || draggingFixture?.id === fix.id,
+        undefined,
+        Math.round(9.5 * fontScaleFactor * 10) / 10
       );
-
     });
 
 
@@ -6719,9 +6669,9 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             dimensionUnit,
 
             'ghost_tier',
-
-            null
-
+            null,
+            undefined,
+            Math.round(9.5 * fontScaleFactor * 10) / 10
           );
 
         }
@@ -7172,7 +7122,7 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
     }
 
-  }, [scale, offset, rooms, allWalls, currentWallStart, snappedCursor, activeGuides, isSnapToClose, isSnappedToVertex, isSnappedToWall, selectedRoomId, wallThickness, selectedWallId, hoveredWallId, selectedOpening, hoveredOpeningId, hoveredVertex, draggingVertex, worldToScreen, backdrop, calibration, cursorWorld, manualDimOffsets, draggingDimKey, hoveredDimKey, toolMode, rectStartPoint, rectCurrentPoint]);
+  }, [scale, offset, rooms, allWalls, currentWallStart, snappedCursor, activeGuides, isSnapToClose, isSnappedToVertex, isSnappedToWall, selectedRoomId, wallThickness, selectedWallId, hoveredWallId, selectedOpening, hoveredOpeningId, hoveredVertex, draggingVertex, worldToScreen, backdrop, calibration, cursorWorld, manualDimOffsets, draggingDimKey, hoveredDimKey, toolMode, rectStartPoint, rectCurrentPoint, fontScale, fontScaleFactor, dimensionUnit, ceilingHeight, fixtures, selectedFixtureId, hoveredFixtureId, activeFixtureType, showRoomSpans]);
 
 
 
@@ -8543,81 +8493,43 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             </span>
 
             <button
-
               type="button"
-
               onClick={() => {
-
                 setFontScale('sm');
-
                 showToast('🔤 Мелкий шрифт (100%)');
-
               }}
-
-              className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
-
-                fontScale === 'sm' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
-
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                fontScale === 'sm' ? 'bg-white text-blue-700 shadow-xs border border-blue-400 ring-1 ring-blue-300' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-
-              title="Мелкий шрифт (100%)"
-
+              title="Мелкий шрифт (100%) — компактный"
             >
-
               🔤 Мелкий
-
             </button>
-
             <button
-
               type="button"
-
               onClick={() => {
-
                 setFontScale('md');
-
-                showToast('🔠 Средний шрифт (125%)');
-
+                showToast('🔠 Средний шрифт (130%)');
               }}
-
-              className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
-
-                fontScale === 'md' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
-
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                fontScale === 'md' ? 'bg-white text-blue-700 shadow-xs border border-blue-400 ring-1 ring-blue-300' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-
-              title="Средний шрифт (125%)"
-
+              title="Средний шрифт (130%) — стандартный"
             >
-
               🔠 Средний
-
             </button>
-
             <button
-
               type="button"
-
               onClick={() => {
-
                 setFontScale('lg');
-
-                showToast('🅰️ Крупный шрифт (150%)');
-
+                showToast('🅰️ Крупный шрифт (165%)');
               }}
-
-              className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
-
-                fontScale === 'lg' ? 'bg-white text-blue-700 shadow-2xs border border-slate-200' : 'text-slate-600 hover:text-slate-900'
-
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                fontScale === 'lg' ? 'bg-white text-blue-700 shadow-xs border border-blue-400 ring-1 ring-blue-300' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-
-              title="Крупный шрифт (150%)"
-
+              title="Крупный шрифт (165%) — крупный для чертежей"
             >
-
               🅰️ Крупный
-
             </button>
 
           </div>
@@ -13709,25 +13621,16 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               }}
 
               style={{
-
                 position: 'absolute',
-
                 left: `${screenPos.x}px`,
-
                 top: `${screenPos.y}px`,
-
                 transform: 'translate(-50%, -50%)',
-
+                padding: `${Math.round(2 * fontScaleFactor)}px ${Math.round(6 * fontScaleFactor)}px`
               }}
-
-              className={`z-10 text-center cursor-pointer select-none px-2 py-0.5 rounded-md border pointer-events-auto transition-transform hover:scale-105 shadow-xs ${
-
+              className={`z-10 text-center cursor-pointer select-none rounded-md border pointer-events-auto transition-transform hover:scale-105 shadow-xs ${
                 room.id === selectedRoomId 
-
                   ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-400' 
-
                   : 'bg-white/95 border-slate-300 hover:border-blue-400'
-
               }`}
 
               title="Двойной клик — выбор отделки и работ; перетаскивание ЛКМ; ПКМ — меню параметров"

@@ -625,7 +625,8 @@ function drawTieTextBadge(
   x: number,
   y: number,
   isHighlight: boolean = false,
-  angle: number = 0
+  angle: number = 0,
+  fontSize: number = 9.0
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -634,7 +635,6 @@ function drawTieTextBadge(
   }
 
   // Единый инженерный ГОСТ-шрифт чертежа (как на цепочках стен и комнат)
-  const fontSize = 9.0;
   ctx.font = `600 ${fontSize}px "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif`;
   try {
     (ctx as any).letterSpacing = '0.2px';
@@ -765,7 +765,8 @@ export function drawWallFixtureTiers(
   unit: DimensionUnit = 'mm',
   selectedFixtureId?: string | null,
   hoveredFixtureId?: string | null,
-  onRegisterHitBox?: (hitBox: DimHitBox) => void
+  onRegisterHitBox?: (hitBox: DimHitBox) => void,
+  fontSize: number = 9.0
 ) {
   const wallLen = distance(wall.start, wall.end);
   if (wallLen < 0.1) return;
@@ -884,7 +885,7 @@ export function drawWallFixtureTiers(
     const midY = (cTierScr.y + fixTierScr.y) / 2;
     const tieAngle = getStandardDimensionAngle(cTierScr, fixTierScr);
     const dimText = formatDimValue(dist, unit);
-    drawTieTextBadge(ctx, dimText, midX, midY, isSel, tieAngle);
+    drawTieTextBadge(ctx, dimText, midX, midY, isSel, tieAngle, fontSize);
 
     if (onRegisterHitBox) {
       onRegisterHitBox({
@@ -930,7 +931,8 @@ export function drawFixtureDimensionTies(
   unit: DimensionUnit = 'mm',
   isSelected: boolean = false,
   isHover: boolean = false,
-  onRegisterHitBox?: (hitBox: DimHitBox) => void
+  onRegisterHitBox?: (hitBox: DimHitBox) => void,
+  fontSize: number = 9.0
 ) {
   if (walls.length === 0) return;
 
@@ -939,7 +941,7 @@ export function drawFixtureDimensionTies(
     const wall = walls.find(w => w.id === fixture.wallId);
     if (wall) {
       const room = rooms.find(r => r.id === fixture.roomId) || rooms.find(r => r.walls.some(w => w.id === wall.id));
-      drawWallFixtureTiers(ctx, wall, [fixture], room, toScreen, scale, unit, isSelected ? fixture.id : null, isHover ? fixture.id : null, onRegisterHitBox);
+      drawWallFixtureTiers(ctx, wall, [fixture], room, toScreen, scale, unit, isSelected ? fixture.id : null, isHover ? fixture.id : null, onRegisterHitBox, fontSize);
       return;
     }
   }
@@ -1020,7 +1022,7 @@ export function drawFixtureDimensionTies(
     const midY = (fixScr.y + projScr.y) / 2;
     const angle = getStandardDimensionAngle(projScr, fixScr);
     const dimText = formatDimValue(minVertDist, unit);
-    drawTieTextBadge(ctx, dimText, midX, midY, isSelected, angle);
+    drawTieTextBadge(ctx, dimText, midX, midY, isSelected, angle, fontSize);
 
     if (onRegisterHitBox && nearestVerticalWall) {
       onRegisterHitBox({
@@ -1059,7 +1061,7 @@ export function drawFixtureDimensionTies(
     const midY = (fixScr.y + projScr.y) / 2;
     const angle = getStandardDimensionAngle(projScr, fixScr);
     const dimText = formatDimValue(minHorizDist, unit);
-    drawTieTextBadge(ctx, dimText, midX, midY, isSelected, angle);
+    drawTieTextBadge(ctx, dimText, midX, midY, isSelected, angle, fontSize);
 
     if (onRegisterHitBox && nearestHorizontalWall) {
       onRegisterHitBox({

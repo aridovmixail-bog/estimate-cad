@@ -424,7 +424,8 @@ export function drawRoomSpanDimensions(
   toScreen: (x: number, y: number) => Point,
   scale: number,
   unit: DimensionUnit = 'mm',
-  onRegisterHitBox?: (hitBox: DimHitBox) => void
+  onRegisterHitBox?: (hitBox: DimHitBox) => void,
+  fontSize: number = 9.0
 ) {
   if (scale < 25) return; // Не перегружать при сильном отдалении
 
@@ -513,7 +514,7 @@ export function drawRoomSpanDimensions(
       drawArchitecturalTick45(ctx, scrEnd.x, scrEnd.y, 4);
 
       const text = formatDimValue(clearW, unit);
-      drawDimensionTextOnLine(ctx, text, scrStart, scrEnd, false, 9.0, 0);
+      drawDimensionTextOnLine(ctx, text, scrStart, scrEnd, false, fontSize, 0);
     }
 
     // 2. Вертикальная внутренняя размерная линия (чистая длина комнаты в чистоте, например 3670)
@@ -535,7 +536,7 @@ export function drawRoomSpanDimensions(
       drawArchitecturalTick45(ctx, scrEnd.x, scrEnd.y, 4);
 
       const text = formatDimValue(clearH, unit);
-      drawDimensionTextOnLine(ctx, text, scrStart, scrEnd, false, 9.0, 1);
+      drawDimensionTextOnLine(ctx, text, scrStart, scrEnd, false, fontSize, 1);
     }
 
     ctx.restore();
@@ -550,7 +551,8 @@ export function drawArchitecturalRoomLabels(
   rooms: Room[],
   toScreen: (x: number, y: number) => Point,
   scale: number,
-  globalCeilingHeight: number = 3.04
+  globalCeilingHeight: number = 3.04,
+  fontScaleFactor: number = 1.0
 ) {
   rooms.forEach(room => {
     if (room.points.length < 3) return;
@@ -567,16 +569,18 @@ export function drawArchitecturalRoomLabels(
 
     ctx.save();
     // Название помещения (как «Кухня», «Жилая с гардеробом» на плане)
-    ctx.font = '700 13px system-ui, -apple-system, sans-serif';
+    const namePx = Math.round(13 * fontScaleFactor);
+    ctx.font = `700 ${namePx}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = '#0f172a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(room.name, scr.x, scr.y - 7);
+    ctx.fillText(room.name, scr.x, scr.y - 7 * fontScaleFactor);
 
     // Площадь комнаты (например 39.95 м²)
-    ctx.font = '600 11px "Consolas", monospace, sans-serif';
+    const areaPx = Math.round(11 * fontScaleFactor);
+    ctx.font = `600 ${areaPx}px "Consolas", monospace, sans-serif`;
     ctx.fillStyle = '#2563eb';
-    ctx.fillText(`${room.floorArea} м²`, scr.x, scr.y + 8);
+    ctx.fillText(`${room.floorArea} м²`, scr.x, scr.y + 8 * fontScaleFactor);
 
     ctx.restore();
   });
@@ -588,11 +592,12 @@ export function drawArchitecturalRoomLabels(
 export function drawCeilingHeightStamp(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
-  ceilingHeight: number = 3.04
+  ceilingHeight: number = 3.04,
+  fontSize: number = 18
 ) {
   ctx.save();
   const text = `h=${ceilingHeight.toFixed(2).replace('.', ',')}`;
-  ctx.font = '600 18px "Consolas", monospace, sans-serif';
+  ctx.font = `600 ${fontSize}px "Consolas", monospace, sans-serif`;
   ctx.fillStyle = '#0f172a';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
