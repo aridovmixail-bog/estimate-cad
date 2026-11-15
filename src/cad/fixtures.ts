@@ -626,12 +626,30 @@ function drawTieTextBadge(
   y: number,
   isHighlight: boolean = false,
   angle: number = 0,
-  fontSize: number = 9.0
+  fontSize: number = 9.0,
+  manualOffset?: { x: number; y: number }
 ) {
+  const hasManual = manualOffset && (Math.abs(manualOffset.x) > 0.5 || Math.abs(manualOffset.y) > 0.5);
+  const posX = hasManual ? x + manualOffset.x : x;
+  const posY = hasManual ? y + manualOffset.y : y;
+  const finalAngle = hasManual ? 0 : angle;
+
+  // Если есть ручной перенос и отодвинули дальше 8px — рисуем тонкую аккуратную выноску по ГОСТ
+  if (hasManual && Math.hypot(manualOffset.x, manualOffset.y) > 8) {
+    ctx.save();
+    ctx.strokeStyle = isHighlight ? '#2563eb' : '#64748b';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(posX, posY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.save();
-  ctx.translate(x, y);
-  if (angle !== 0) {
-    ctx.rotate(angle);
+  ctx.translate(posX, posY);
+  if (finalAngle !== 0) {
+    ctx.rotate(finalAngle);
   }
 
   // Единый инженерный ГОСТ-шрифт чертежа (как на цепочках стен и комнат)
@@ -677,7 +695,8 @@ function drawLeaderShelf(
   inwardNorm: Point,
   maxTierPx: number = 40,
   isHighlight: boolean = false,
-  fontSize: number = 9.0
+  fontSize: number = 9.0,
+  manualOffset?: { x: number; y: number }
 ): { x: number; y: number; w: number; h: number } {
   ctx.save();
 
@@ -686,12 +705,19 @@ function drawLeaderShelf(
 
   // Точка излома (elbow): отступаем по нормали внутрь комнаты за все размерные линии,
   // плюс легкий сдвиг вдоль стены для естественного эстетичного угла ~45°
-  const elbowX = originScr.x + inwardNorm.x * clearDistPx - inwardNorm.y * 22;
-  const elbowY = originScr.y + inwardNorm.y * clearDistPx + inwardNorm.x * 22;
+  let elbowX = originScr.x + inwardNorm.x * clearDistPx - inwardNorm.y * 22;
+  let elbowY = originScr.y + inwardNorm.y * clearDistPx + inwardNorm.x * 22;
+
+  // Если есть ручное смещение (drag-to-move названия без самого объекта):
+  if (manualOffset && (Math.abs(manualOffset.x) > 0.5 || Math.abs(manualOffset.y) > 0.5)) {
+    elbowX += manualOffset.x;
+    elbowY += manualOffset.y;
+  }
 
   // Полочка всегда строго горизонтальная по ГОСТ/ЕСКД
-  // Если нормаль стены направлена влево (inwardNorm.x < -0.1), полочка идет влево, иначе вправо
-  const shelfDir = inwardNorm.x < -0.1 ? -1 : 1;
+  // Если точка излома левее объекта более чем на 10px, полочка идет влево, иначе вправо
+  const isLeft = elbowX < originScr.x - 10;
+  const shelfDir = isLeft ? -1 : 1;
 
   const topFontPx = Math.max(10, Math.round(fontSize * 1.2));
   const botFontPx = Math.max(9, Math.round(fontSize * 1.05));
@@ -780,7 +806,8 @@ export function drawWallFixtureTiers(
   selectedFixtureId?: string | null,
   hoveredFixtureId?: string | null,
   onRegisterHitBox?: (hitBox: DimHitBox) => void,
-  fontSize: number = 9.0
+  fontSize: number = 9.0,
+  manualOffsets?: Record<string, { x: number; y: number }>
 ) {
   const wallLen = distance(wall.start, wall.end);
   if (wallLen < 0.1) return;
@@ -899,20 +926,25 @@ export function drawWallFixtureTiers(
     const midY = (cTierScr.y + fixTierScr.y) / 2;
     const tieAngle = getStandardDimensionAngle(cTierScr, fixTierScr);
     const dimText = formatDimValue(dist, unit);
-    drawTieTextBadge(ctx, dimText, midX, midY, isSel, tieAngle, fontSize);
+    const tieKey = `fixture_tie_${fix.id}`;
+    const tieOffset = manualOffsets ? manualOffsets[tieKey] : undefined;
+    drawTieTextBadge(ctx, dimText, midX, midY, isSel, tieAngle, fontSize, tieOffset);
+
+    const effMidX = tieOffset ? midX + tieOffset.x : midX;
+    const effMidY = tieOffset ? midY + tieOffset.y : midY;
 
     if (onRegisterHitBox) {
       onRegisterHitBox({
-        key: `fixture_tie_${fix.id}`,
+        key: tieKey,
         wallId: wall.id,
         segIndex: idx,
         text: dimText,
-        x: midX,
-        y: midY,
+        x: effMidX,
+        y: effMidY,
         w: 38,
         h: 18,
         lineMid: { x: midX, y: midY },
-        angle: tieAngle,
+        angle: tieOffset ? 0 : tieAngle,
         segLenMeters: dist,
         fixtureId: fix.id,
         isFixtureTie: true
@@ -923,11 +955,13 @@ export function drawWallFixtureTiers(
     const def = getFixtureDefinition(fix.type);
     const heightMm = Math.round((fix.installationHeight || def.defaultHeightFromFloor) * 1000);
     const shelfLabel = fix.customName || fix.name || def.shortLabel || def.name;
-    const shelfBox = drawLeaderShelf(ctx, fixScr, shelfLabel, `H=${heightMm}`, inwardNorm, maxTierPx, isSel, fontSize);
+    const shelfKey = `fixture_shelf_${fix.id}`;
+    const shelfOffset = manualOffsets ? manualOffsets[shelfKey] : undefined;
+    const shelfBox = drawLeaderShelf(ctx, fixScr, shelfLabel, `H=${heightMm}`, inwardNorm, maxTierPx, isSel, fontSize, shelfOffset);
 
     if (onRegisterHitBox && shelfBox) {
       onRegisterHitBox({
-        key: `fixture_shelf_${fix.id}`,
+        key: shelfKey,
         wallId: wall.id,
         segIndex: idx,
         text: `${shelfLabel} H=${heightMm}`,
@@ -961,7 +995,8 @@ export function drawFixtureDimensionTies(
   isSelected: boolean = false,
   isHover: boolean = false,
   onRegisterHitBox?: (hitBox: DimHitBox) => void,
-  fontSize: number = 9.0
+  fontSize: number = 9.0,
+  manualOffsets?: Record<string, { x: number; y: number }>
 ) {
   if (walls.length === 0) return;
 
@@ -970,7 +1005,20 @@ export function drawFixtureDimensionTies(
     const wall = walls.find(w => w.id === fixture.wallId);
     if (wall) {
       const room = rooms.find(r => r.id === fixture.roomId) || rooms.find(r => r.walls.some(w => w.id === wall.id));
-      drawWallFixtureTiers(ctx, wall, [fixture], room, toScreen, scale, unit, isSelected ? fixture.id : null, isHover ? fixture.id : null, onRegisterHitBox, fontSize);
+      drawWallFixtureTiers(
+        ctx,
+        wall,
+        [fixture],
+        room,
+        toScreen,
+        scale,
+        unit,
+        isSelected ? fixture.id : null,
+        isHover ? fixture.id : null,
+        onRegisterHitBox,
+        fontSize,
+        manualOffsets
+      );
       return;
     }
   }

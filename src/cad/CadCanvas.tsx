@@ -3400,25 +3400,11 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
 
-      // 0.0. Захват отметки обозначения (выноски с полочкой) или размерного числа
+      // 0.0. Захват названия объекта (плашки выноски), яруса или размера стены мышкой для свободного смещения
       const hitDim = findDimHitBoxAtScreenPos(screenX, screenY);
       if (hitDim) {
         if (hitDim.fixtureId) {
-          const targetFix = fixtures.find(f => f.id === hitDim.fixtureId);
-          if (targetFix) {
-            pushHistory();
-            setSelectedFixtureId(targetFix.id);
-            setSelectedWallId(null);
-            setSelectedOpening(null);
-            setSelectedVertex(null);
-            setSelectedRoomId(null);
-            setDraggingFixture({
-              id: targetFix.id,
-              offsetWorld: { x: targetFix.x - rawWorld.x, y: targetFix.y - rawWorld.y }
-            });
-            actionLogger.addLog('click', `Выбрано обозначение: ${targetFix.name}`, `Перемещение по стене`);
-            return;
-          }
+          setSelectedFixtureId(hitDim.fixtureId);
         }
         const currentOffset = manualDimOffsets[hitDim.key] || { x: 0, y: 0 };
         dragDimCandidateRef.current = {
@@ -6571,7 +6557,8 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         (hitBox) => {
           dimHitBoxesRef.current.push(hitBox);
         },
-        Math.round(9.5 * fontScaleFactor * 10) / 10
+        Math.round(9.5 * fontScaleFactor * 10) / 10,
+        manualDimOffsets
       );
     });
 
@@ -6590,7 +6577,8 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         (hitBox) => {
           dimHitBoxesRef.current.push(hitBox);
         },
-        Math.round(9.5 * fontScaleFactor * 10) / 10
+        Math.round(9.5 * fontScaleFactor * 10) / 10,
+        manualDimOffsets
       );
     });
 
@@ -6691,7 +6679,8 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             'ghost_tier',
             null,
             undefined,
-            Math.round(9.5 * fontScaleFactor * 10) / 10
+            Math.round(9.5 * fontScaleFactor * 10) / 10,
+            manualDimOffsets
           );
 
         }
