@@ -56,6 +56,7 @@ import { CadSettingsModal } from './CadSettingsModal';
 import { vectorizePlanImage } from './planVectorizer';
 
 import { useTypography } from '../context/TypographyContext';
+import { loadEffectivePirogs } from '../components/RoomFinishesModal';
 
 import { DEFAULT_PIROGS } from '../estimate/defaultPirogs';
 
@@ -635,43 +636,29 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({
 
 
   // Пользовательские бутерброды (пироги отделки)
-
   const [customPirogs, setCustomPirogs] = useState<PirogDefinition[]>(() => {
-
     try {
-
-      const saved = localStorage.getItem('estimate_cad_custom_pirogs_v1');
-
-      if (saved) return JSON.parse(saved);
-
+      const loaded = loadEffectivePirogs();
+      if (loaded && Array.isArray(loaded) && loaded.length > 0) return loaded;
     } catch (e) {
-
-      console.warn('Не удалось загрузить пользовательские бутерброды:', e);
-
+      console.warn('Не удалось загрузить пользовательские бутерброды через loadEffectivePirogs:', e);
     }
-
+    try {
+      const saved = localStorage.getItem('estimate_cad_custom_pirogs_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
     return DEFAULT_PIROGS;
-
   });
 
-
-
   const handleSaveCustomPirogs = (updated: PirogDefinition[]) => {
-
     setCustomPirogs(updated);
-
     try {
-
       localStorage.setItem('estimate_cad_custom_pirogs_v1', JSON.stringify(updated));
-
+      localStorage.setItem('estimate_cad_custom_pirogs_v2', JSON.stringify(updated));
     } catch (e) {
-
       console.error('Ошибка записи бутербродов в localStorage:', e);
-
     }
-
     showToast('✅ База бутербродов успешно обновлена!');
-
   };
 
 
@@ -8448,19 +8435,19 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       {/* 1. ВЕРХНИЙ СВЕТЛЫЙ ЗАГОЛОВОК ОКНА CAD */}
       <div 
-        className="h-9 bg-white border-b border-slate-200 px-3 flex items-center justify-between z-20 shrink-0 select-none whitespace-nowrap overflow-x-auto no-scrollbar"
+        className="h-9 bg-white border-b border-slate-200 px-3 flex items-center justify-between z-20 shrink-0 select-none whitespace-nowrap overflow-hidden"
         style={{ fontSize: '12px' }}
       >
-        <div className="flex items-center gap-2 min-w-0 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
           <span className="px-2.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-extrabold text-xs tracking-wide flex items-center gap-1.5 shadow-2xs shrink-0">
             <Pencil className="w-3.5 h-3.5 text-blue-600" />
             ESTIMATE CAD 2.0
           </span>
           <span className="text-slate-300 font-light shrink-0">|</span>
-          <span className="text-xs font-semibold text-slate-700 shrink-0">
+          <span className="text-xs font-semibold text-slate-700 truncate shrink-0">
             Обмерный план
           </span>
-          <span className="text-[11px] text-slate-400 font-mono hidden md:inline shrink-0">
+          <span className="text-[11px] text-slate-400 font-mono hidden xl:inline shrink-0">
             (стен: {allWalls.length}, комнат: {rooms.length})
           </span>
           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
@@ -8468,8 +8455,19 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           </span>
         </div>
 
-        {/* Быстрые действия в шапке: Undo + Настройки */}
+        {/* Быстрые действия в шапке: Очистить + Назад + Настройки */}
         <div className="flex items-center gap-1.5 shrink-0 pl-2">
+          {/* Очистить всё (на рабочей области) */}
+          <button
+            type="button"
+            onClick={() => setShowClearConfirm(true)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors shadow-2xs cursor-pointer shrink-0"
+            title="Очистить всё поле чертежа"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            <span>Очистить</span>
+          </button>
+
           {/* Undo */}
           <button
             type="button"
@@ -8501,10 +8499,10 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       {/* 2. ПОЛОСА ВКЛАДОК ЛЕНТЫ (RIBBON TABS - СВЕТЛАЯ) */}
       <div 
-        className="h-9 bg-slate-100 border-b border-slate-200 px-3 flex items-end justify-between z-10 shrink-0 select-none overflow-x-auto no-scrollbar whitespace-nowrap"
+        className="h-9 bg-slate-100 border-b border-slate-200 px-2 flex items-end justify-between z-10 shrink-0 select-none overflow-hidden whitespace-nowrap"
         style={{ fontSize: '12px' }}
       >
-        <div className="flex gap-1 shrink-0">
+        <div className="flex gap-1 min-w-0 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveRibbonTab('drawing')}
@@ -8521,52 +8519,55 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <button
             type="button"
             onClick={() => setActiveRibbonTab('gost')}
-            className={`px-3 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+            className={`px-2.5 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeRibbonTab === 'gost'
                 ? 'bg-white text-blue-700 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
+            title="Оформление чертежа и размеры по ГОСТ"
           >
             <Ruler className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Оформление ГОСТ</span>
+            <span>Оформление</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRibbonTab('estimate')}
-            className={`px-3 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+            className={`px-2.5 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeRibbonTab === 'estimate'
                 ? 'bg-white text-blue-700 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
+            title="Смета и пироги отделки помещений"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Смета & Пироги</span>
+            <span>Смета</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveRibbonTab('backdrop')}
-            className={`px-3 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+            className={`px-2.5 py-1.5 rounded-t-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
               activeRibbonTab === 'backdrop'
                 ? 'bg-white text-blue-700 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
             }`}
+            title="Калька-подложка чертежа"
           >
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Подложка плана</span>
+            <span>Подложка</span>
             {backdrop && (
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" title="Подложка активна" />
             )}
           </button>
         </div>
 
-        {/* Быстрые глобальные кнопки сметы справа */}
-        <div className="flex items-center gap-1.5 pb-1 shrink-0 pl-2">
+        {/* Быстрые глобальные кнопки сметы справа (всегда на виду) */}
+        <div className="flex items-center gap-1 pb-1 shrink-0 pl-1.5 bg-slate-100">
           <button
             type="button"
             onClick={() => setShowEstimateWindow(prev => !prev)}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 ${
               showEstimateWindow
                 ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300'
@@ -8585,7 +8586,7 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <button
             type="button"
             onClick={() => setShowConstructorModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 transition-all cursor-pointer shadow-2xs shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 transition-all cursor-pointer shadow-2xs shrink-0"
             title="Открыть конструктор бутербродов отделки"
           >
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
@@ -8607,10 +8608,10 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             type="button"
             onClick={() => backdropFileInputRef.current?.click()}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 transition-all cursor-pointer shadow-2xs shrink-0"
-            title="Загрузить чертеж: автоматическая оцифровка в нативные стены CAD через OCR"
+            title="Загрузить чертеж: автоматическая оцифровка в нативные стены CAD через OCR или калька-подложка"
           >
             <Wand2 className={`w-3.5 h-3.5 text-blue-600 ${isVectorizing ? 'animate-spin' : ''}`} />
-            <span>{isVectorizing ? 'Оцифровка...' : '📐 План'}</span>
+            <span>{isVectorizing ? 'Оцифровка...' : '📐 Загрузить'}</span>
           </button>
         </div>
       </div>
@@ -15808,44 +15809,27 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       {/* 5. НИЖНЯЯ СИСТЕМНАЯ СТРОКА СОСТОЯНИЯ ГОСТ (STATUS BAR - СВЕТЛАЯ) */}
       <div 
-        className="h-8 bg-slate-100 border-t border-slate-300 px-3 flex items-center justify-between text-xs select-none shrink-0 z-20 whitespace-nowrap overflow-x-auto no-scrollbar"
+        className="h-8 bg-slate-100 border-t border-slate-300 px-2.5 flex items-center justify-between text-xs select-none shrink-0 z-20 whitespace-nowrap overflow-hidden"
         style={{ fontSize: '11px' }}
       >
-        <div className="flex items-center gap-2.5 font-mono text-[11px] text-slate-700 shrink-0">
-
-          <span className="font-bold text-blue-700">
-
+        <div className="flex items-center gap-2 font-mono text-[11px] text-slate-700 min-w-0 truncate">
+          <span className="font-bold text-blue-700 shrink-0">
             X: {dimensionUnit === 'mm' ? Math.round(cursorWorld.x * 1000) : cursorWorld.x.toFixed(2)} | Y: {dimensionUnit === 'mm' ? Math.round(cursorWorld.y * 1000) : cursorWorld.y.toFixed(2)} {dimensionUnit}
-
           </span>
-
-          <span className="text-slate-300">|</span>
-
-          <span className="text-slate-500">Шаг: 10 мм</span>
-
-          <span className="text-slate-300">|</span>
-
-          <span className="text-slate-700 font-semibold">
-
-            Масштаб 1:{Math.round(100 * (70 / Math.max(scale, 1)))} ({Math.round(scale)} px/м)
-
+          <span className="text-slate-300 hidden xl:inline">|</span>
+          <span className="text-slate-500 hidden xl:inline">Шаг: 10 мм</span>
+          <span className="text-slate-300 hidden lg:inline">|</span>
+          <span className="text-slate-700 font-semibold hidden lg:inline">
+            1:{Math.round(100 * (70 / Math.max(scale, 1)))}
           </span>
-
-          <span className="text-slate-300">|</span>
-
-          <span className="text-emerald-700 font-bold">
-
+          <span className="text-slate-300 hidden md:inline">|</span>
+          <span className="text-emerald-700 font-bold shrink-0">
             Sобщ = {rooms.filter(r => !r.isShaft).reduce((sum, r) => sum + r.floorArea, 0).toFixed(2)} м²
-
           </span>
-
         </div>
 
-
-
         {/* Инженерные переключатели САПР */}
-
-        <div className="flex items-center gap-1.5 text-[11px]">
+        <div className="flex items-center gap-1 text-[11px] shrink-0 pl-1.5">
 
           <button
 

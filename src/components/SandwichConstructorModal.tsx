@@ -29,6 +29,22 @@ interface SandwichConstructorModalProps {
   regionalCoeff?: number;
 }
 
+const sanitizePirog = (p: Partial<PirogDefinition> | null | undefined): PirogDefinition => {
+  return {
+    id: p?.id || `USER-P-${Date.now().toString().slice(-4)}`,
+    name: p?.name || 'Бутерброд',
+    category: (p?.category as PirogCategory) || 'walls',
+    description: p?.description || '',
+    works: Array.isArray(p?.works) ? p.works.filter(Boolean) : [],
+    materials: Array.isArray(p?.materials) ? p.materials.filter(Boolean) : [],
+    economPrice: p?.economPrice,
+    standardPrice: p?.standardPrice,
+    designPrice: p?.designPrice,
+    totalWorkPrice: p?.totalWorkPrice,
+    totalMaterialPrice: p?.totalMaterialPrice,
+  };
+};
+
 export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> = ({
   isOpen,
   onClose,
@@ -37,9 +53,14 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
   currentTariff = 'standard',
   regionalCoeff = 1.00
 }) => {
-  // Список пирогов в локальном состоянии модального окна
-  const [localPirogs, setLocalPirogs] = useState<PirogDefinition[]>(pirogs);
-  const [selectedPirogId, setSelectedPirogId] = useState<string>(pirogs[0]?.id || 'FIN-W-01');
+  // Список пирогов в локальном состоянии модального окна (гарантированно очищенный и не пустой)
+  const initialPirogs = useMemo(() => {
+    const list = (Array.isArray(pirogs) && pirogs.length > 0) ? pirogs : DEFAULT_PIROGS;
+    return list.map(sanitizePirog);
+  }, [pirogs]);
+
+  const [localPirogs, setLocalPirogs] = useState<PirogDefinition[]>(initialPirogs);
+  const [selectedPirogId, setSelectedPirogId] = useState<string>(initialPirogs[0]?.id || 'FIN-W-01');
 
   // Вкладка каталога справа: 'works' (459 работ) или 'materials' (39 материалов)
   const [catalogTab, setCatalogTab] = useState<'works' | 'materials'>('works');
@@ -52,16 +73,18 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
   // Синхронизация при открытии
   React.useEffect(() => {
     if (isOpen) {
-      setLocalPirogs(pirogs);
-      if (!pirogs.some(p => p.id === selectedPirogId)) {
-        setSelectedPirogId(pirogs[0]?.id || 'FIN-W-01');
+      const sanitized = (Array.isArray(pirogs) && pirogs.length > 0 ? pirogs : DEFAULT_PIROGS).map(sanitizePirog);
+      setLocalPirogs(sanitized);
+      if (!sanitized.some(p => p.id === selectedPirogId)) {
+        setSelectedPirogId(sanitized[0]?.id || 'FIN-W-01');
       }
     }
   }, [isOpen, pirogs]);
 
   // Выбранный для редактирования бутерброд
   const activePirog = useMemo(() => {
-    return localPirogs.find(p => p.id === selectedPirogId) || localPirogs[0];
+    const found = localPirogs.find(p => p.id === selectedPirogId) || localPirogs[0];
+    return found ? sanitizePirog(found) : null;
   }, [localPirogs, selectedPirogId]);
 
   // Уникальные разделы работ из каталога 459
@@ -244,14 +267,20 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
     let design = 0;
     let materials = 0;
 
-    activePirog.works.forEach(w => {
-      econom += (w.economPrice ?? w.defaultUnitPrice);
-      standard += (w.standardPrice ?? w.defaultUnitPrice);
-      design += (w.designPrice ?? w.defaultUnitPrice);
+    (activePirog.works || []).forEach(w => {
+      if (!w) return;
+      const def = Number(w.defaultUnitPrice) || 0;
+      econom += Number(w.economPrice != null ? w.economPrice : def);
+      standard += Number(w.standardPrice != null ? w.standardPrice : def);
+      design += Number(w.designPrice != null ? w.designPrice : def);
     });
 
-    activePirog.materials.forEach(m => {
-      materials += (m.defaultUnitPrice * m.normPerUnit * (m.safetyCoeff || 1));
+    (activePirog.materials || []).forEach(m => {
+      if (!m) return;
+      const price = Number(m.defaultUnitPrice) || 0;
+      const norm = Number(m.normPerUnit) || 0;
+      const safety = Number(m.safetyCoeff) || 1;
+      materials += (price * norm * safety);
     });
 
     return {
@@ -357,7 +386,7 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-xs font-semibold">{pirog.name}</div>
                               <div className="text-[10px] opacity-75 font-mono">
-                                {pirog.works.length} работ • {pirog.materials.length} мат.
+                                {(pirog.works || []).length} работ • {(pirog.materials || []).length} мат.
                               </div>
                             </div>
                             <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
@@ -445,7 +474,7 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                   <div className="flex items-center gap-2">
                     <Hammer className="w-4 h-4 text-blue-600" />
                     <h3 className="font-bold text-sm text-slate-900">
-                      Технологические этапы работ ({activePirog.works.length}):
+                      Технологические этапы работ ({(activePirog?.works || []).length}):
                     </h3>
                   </div>
                   <span className="text-[10px] text-slate-500">
@@ -453,13 +482,13 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                   </span>
                 </div>
 
-                {activePirog.works.length === 0 ? (
+                {(activePirog?.works || []).length === 0 ? (
                   <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-500 bg-slate-50">
                     В этом бутерброде пока нет этапов работ. Кликните [+] в правом каталоге, чтобы добавить работы!
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {activePirog.works.map((w, idx) => (
+                    {(activePirog?.works || []).map((w, idx) => (
                       <div 
                         key={w.id}
                         className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-3 text-xs"
@@ -517,7 +546,7 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-amber-600" />
                     <h3 className="font-bold text-sm text-slate-900">
-                      Черновые материалы ({activePirog.materials.length}):
+                      Черновые материалы ({(activePirog?.materials || []).length}):
                     </h3>
                   </div>
                   <span className="text-[10px] text-slate-500">
@@ -525,13 +554,13 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                   </span>
                 </div>
 
-                {activePirog.materials.length === 0 ? (
+                {(activePirog?.materials || []).length === 0 ? (
                   <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-500 bg-slate-50">
                     Черновые материалы не привязаны. Перетащите материал из правого каталога!
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {activePirog.materials.map((m, idx) => (
+                    {(activePirog?.materials || []).map((m, idx) => (
                       <div 
                         key={m.id}
                         className="bg-slate-50/80 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-3 text-xs"
