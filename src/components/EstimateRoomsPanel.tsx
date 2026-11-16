@@ -119,7 +119,6 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
     } catch {}
   };
 
-  const [showClientDetails, setShowClientDetails] = useState<boolean>(false);
 
   // Выбранные пироги и ручные правки по комнатам
   const [internalSelections, setInternalSelections] = useState<Record<string, RoomSelectionState>>(() => {
@@ -759,67 +758,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
           </button>
         </div>
 
-        {/* ТАРИФ И РЕГИОНАЛЬНЫЙ КОЭФФИЦИЕНТ КРАСНОДАР 2026 */}
-        <div className="mt-2.5 pt-2 border-t border-slate-200 space-y-2">
-          {/* Тариф */}
-          <div>
-            <div className="flex items-center justify-between mb-1 text-[10px] text-slate-600">
-              <span className="font-semibold flex items-center gap-1 text-slate-700">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Тариф работ:
-              </span>
-              <span className="text-[10px] text-amber-400 font-mono font-bold">
-                {tariff === 'econom' && 'Эконом (бюджет)'}
-                {tariff === 'standard' && 'Стандарт (базовый)'}
-                {tariff === 'design' && 'Дизайн-проект'}
-                {tariff === 'detailed' && 'Детальный прайс 459 поз.'}
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-bold">
-              <button
-                type="button"
-                onClick={() => setTariff('econom')}
-                className={`py-1 rounded-md text-center cursor-pointer transition-all ${
-                  tariff === 'econom' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-                title="Тариф Эконом: минимальные расценки бригад"
-              >
-                Эконом
-              </button>
-              <button
-                type="button"
-                onClick={() => setTariff('standard')}
-                className={`py-1 rounded-md text-center cursor-pointer transition-all ${
-                  tariff === 'standard' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-                title="Тариф Стандарт: средняя рыночная цена Краснодара"
-              >
-                Стандарт
-              </button>
-              <button
-                type="button"
-                onClick={() => setTariff('design')}
-                className={`py-1 rounded-md text-center cursor-pointer transition-all ${
-                  tariff === 'design' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-                title="Тариф Дизайн: премиальная отделка высокого класса"
-              >
-                Дизайн
-              </button>
-              <button
-                type="button"
-                onClick={() => setTariff('detailed')}
-                className={`py-1 rounded-md text-center cursor-pointer transition-all ${
-                  tariff === 'detailed' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-                title="Детальный прайс: прямое суммирование 459 позиций"
-              >
-                Прайс 459
-              </button>
-            </div>
-          </div>
-
-          {/* Регион */}
+        {/* РЕГИОНАЛЬНЫЙ КОЭФФИЦИЕНТ КРАСНОДАР 2026 */}
+        <div className="mt-2.5 pt-2 border-t border-slate-200">
           <div className="flex items-center justify-between gap-2 text-[10px]">
             <span className="text-slate-600 font-medium shrink-0 flex items-center gap-1">
               <Building2 className="w-3 h-3 text-indigo-600" />
@@ -844,91 +784,6 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
           <div className="mt-2 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-[11px] flex items-center gap-1.5 animate-in fade-in">
             <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>{exportSuccessMessage}</span>
-          </div>
-        )}
-
-        {/* ПЕРЕКЛЮЧАТЕЛЬ ДАННЫХ ЗАКАЗЧИКА */}
-        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
-          <button
-            onClick={() => setShowClientDetails(!showClientDetails)}
-            className="flex items-center gap-1 hover:text-slate-900 transition-colors cursor-pointer"
-          >
-            <User className="w-3.5 h-3.5 text-blue-600" />
-            <span className="font-medium">Реквизиты договора и заказчика</span>
-            {showClientDetails ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          </button>
-          <span className="text-[10px] text-slate-500 font-mono">{clientInfo.contractNumber}</span>
-        </div>
-
-        {/* ВЫДВИЖНОЙ БЛОК РЕКВИЗИТОВ */}
-        {showClientDetails && (
-          <div className="mt-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs text-slate-700 animate-in fade-in">
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 font-semibold block">ФИО Заказчика:</label>
-              <input
-                type="text"
-                value={clientInfo.name}
-                onChange={(e) => setClientInfo({ ...clientInfo, name: e.target.value })}
-                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-                placeholder="Иванов И.И."
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 font-semibold block">Адрес объекта:</label>
-              <input
-                type="text"
-                value={clientInfo.address}
-                onChange={(e) => setClientInfo({ ...clientInfo, address: e.target.value })}
-                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-                placeholder="г. Краснодар, ул. Красная"
-              />
-              {/* Быстрые подсказки адресов Краснодара */}
-              <div className="flex flex-wrap gap-1 pt-1">
-                <span className="text-[10px] text-slate-400 font-semibold self-center">Быстро:</span>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Дангиреева, д. 2, к.3, кв. 376' })}
-                  className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-semibold border border-blue-200 transition-colors cursor-pointer"
-                >
-                  ул. Дангиреева 2 к3
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Красная, д. 120, кв. 45' })}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold border border-slate-200 transition-colors cursor-pointer"
-                >
-                  ул. Красная 120
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Западный Обход, д. 42' })}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold border border-slate-200 transition-colors cursor-pointer"
-                >
-                  Западный Обход
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-500 font-semibold block">Телефон:</label>
-                <input
-                  type="text"
-                  value={clientInfo.phone}
-                  onChange={(e) => setClientInfo({ ...clientInfo, phone: e.target.value })}
-                  className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
-                  placeholder="+7 (___) ___-__-__"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 font-semibold block">№ Договора:</label>
-                <input
-                  type="text"
-                  value={clientInfo.contractNumber}
-                  onChange={(e) => setClientInfo({ ...clientInfo, contractNumber: e.target.value })}
-                  className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
           </div>
         )}
       </div>

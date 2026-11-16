@@ -451,7 +451,7 @@ export const App: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-slate-400">{clientInfo.contractNumber || 'Б/Н'}</span>
-              {(clientInfo.name || clientInfo.address || clientInfo.phone || clientInfo.contractNumber || rooms.length > 0) ? (
+              {(clientInfo.name || clientInfo.address || clientInfo.phone || clientInfo.contractNumber || rooms.length > 0) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -463,21 +463,6 @@ export const App: React.FC = () => {
                   title="Очистить весь проект (данные заказчика, чертёж, обмер и смету)"
                 >
                   Очистить
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const demo = getDemoClientInfo();
-                    setClientInfo(demo);
-                    try {
-                      localStorage.setItem(STORAGE_KEY_CLIENT, JSON.stringify(demo));
-                    } catch {}
-                  }}
-                  className="text-[10px] text-blue-600 hover:text-blue-800 transition-colors cursor-pointer font-bold"
-                  title="Заполнить демо-данные"
-                >
-                  ⚡ Демо
                 </button>
               )}
             </div>
