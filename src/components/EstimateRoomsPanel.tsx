@@ -758,27 +758,6 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
           </button>
         </div>
 
-        {/* РЕГИОНАЛЬНЫЙ КОЭФФИЦИЕНТ КРАСНОДАР 2026 */}
-        <div className="mt-2.5 pt-2 border-t border-slate-200">
-          <div className="flex items-center justify-between gap-2 text-[10px]">
-            <span className="text-slate-600 font-medium shrink-0 flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-indigo-600" />
-              Регион объекта:
-            </span>
-            <select
-              value={regionalPresetId}
-              onChange={e => setRegionalPresetId(e.target.value)}
-              className="flex-1 bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 text-[11px] font-medium focus:outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              {REGIONAL_PRESETS.map(reg => (
-                <option key={reg.id} value={reg.id} className="bg-white text-slate-900">
-                  {reg.name} ({reg.coeff === 1 ? '1.00' : (reg.coeff > 1 ? `+${Math.round((reg.coeff - 1) * 100)}%` : `${Math.round((reg.coeff - 1) * 100)}%`)})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* УВЕДОМЛЕНИЕ ОБ УСПЕШНОМ ЭКСПОРТЕ */}
         {exportSuccessMessage && (
           <div className="mt-2 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-800 text-[11px] flex items-center gap-1.5 animate-in fade-in">
