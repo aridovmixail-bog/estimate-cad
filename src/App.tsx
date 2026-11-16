@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { CadCanvas } from './cad/CadCanvas';
 import { Room, WindowSizePreset } from './cad/types';
 import { EstimateRoomsPanel } from './components/EstimateRoomsPanel';
@@ -343,7 +344,8 @@ export const App: React.FC = () => {
   const totalFixturesCount = rooms.reduce((acc, r) => acc + (r.fixturesCount || 0), 0);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
+    <ErrorBoundary fallbackTitle="Главное окно приложения">
+      <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans">
       {/* Боковая панель: 3 главных раздела (одинаковая ширина с возможностью изменения) */}
       <div 
         style={{ width: `${sidebarWidth}px` }} 
@@ -610,5 +612,6 @@ export const App: React.FC = () => {
         onPirogsUpdated={setEffectivePirogs}
       />
     </div>
+    </ErrorBoundary>
   );
 };

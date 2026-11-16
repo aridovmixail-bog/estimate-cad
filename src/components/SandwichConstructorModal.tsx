@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { PirogDefinition, PirogCategory, WorkTemplate, MaterialTemplate, MultiplierType, PricingTariff } from '../estimate/types';
 import { PIROG_CATEGORIES, DEFAULT_PIROGS } from '../estimate/defaultPirogs';
 import { KRASNODAR_DETAILED_CATALOG, KRASNODAR_MATERIALS_CATALOG, CatalogWorkItem, CatalogMaterialItem } from '../estimate/krasnodarCatalog';
+import { ErrorBoundary } from './ErrorBoundary';
 import { 
   X, 
   Plus, 
@@ -29,14 +31,38 @@ interface SandwichConstructorModalProps {
   regionalCoeff?: number;
 }
 
+const sanitizeWork = (w: any, idx: number): WorkTemplate => ({
+  id: w?.id || `w_${idx}_${Date.now()}`,
+  name: typeof w?.name === 'string' ? w.name : 'Работа',
+  unit: typeof w?.unit === 'string' ? w.unit : 'м²',
+  defaultUnitPrice: Number(w?.defaultUnitPrice) || 0,
+  economPrice: Number(w?.economPrice ?? w?.defaultUnitPrice ?? 0),
+  standardPrice: Number(w?.standardPrice ?? w?.defaultUnitPrice ?? 0),
+  designPrice: Number(w?.designPrice ?? w?.defaultUnitPrice ?? 0),
+  multiplierType: w?.multiplierType || 'floorArea',
+  source: typeof w?.source === 'string' ? w.source : ''
+});
+
+const sanitizeMaterial = (m: any, idx: number): MaterialTemplate => ({
+  id: m?.id || `m_${idx}_${Date.now()}`,
+  name: typeof m?.name === 'string' ? m.name : 'Материал',
+  unit: typeof m?.unit === 'string' ? m.unit : 'шт',
+  defaultUnitPrice: Number(m?.defaultUnitPrice) || 0,
+  normPerUnit: Number(m?.normPerUnit) || 1,
+  safetyCoeff: Number(m?.safetyCoeff) || 1,
+  multiplierType: m?.multiplierType || 'floorArea',
+  packageType: typeof m?.packageType === 'string' ? m.packageType : 'Стандарт',
+  packagePrice: Number(m?.packagePrice) || 0
+});
+
 const sanitizePirog = (p: Partial<PirogDefinition> | null | undefined): PirogDefinition => {
   return {
     id: p?.id || `USER-P-${Date.now().toString().slice(-4)}`,
     name: p?.name || 'Бутерброд',
     category: (p?.category as PirogCategory) || 'walls',
     description: p?.description || '',
-    works: Array.isArray(p?.works) ? p.works.filter(Boolean) : [],
-    materials: Array.isArray(p?.materials) ? p.materials.filter(Boolean) : [],
+    works: Array.isArray(p?.works) ? p.works.filter(Boolean).map(sanitizeWork) : [],
+    materials: Array.isArray(p?.materials) ? p.materials.filter(Boolean).map(sanitizeMaterial) : [],
     economPrice: p?.economPrice,
     standardPrice: p?.standardPrice,
     designPrice: p?.designPrice,
@@ -291,9 +317,10 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
     };
   }, [activePirog]);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 text-slate-800 animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-300 rounded-2xl shadow-2xl w-full h-[95vh] flex flex-col overflow-hidden text-slate-800">
+  const modalContent = (
+    <ErrorBoundary fallbackTitle="Конструктор бутербродов" onReset={onClose}>
+      <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 text-slate-800 animate-in fade-in duration-150">
+        <div className="bg-white border border-slate-300 rounded-2xl shadow-2xl w-full h-[95vh] flex flex-col overflow-hidden text-slate-800">
         
         {/* 1. ВЕРХНИЙ ХЕДЕР МОДАЛКИ (СВЕТЛЫЙ) */}
         <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
@@ -761,5 +788,8 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
 
       </div>
     </div>
+    </ErrorBoundary>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
