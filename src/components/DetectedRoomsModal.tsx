@@ -240,7 +240,7 @@ export const DetectedRoomsModal: React.FC<DetectedRoomsModalProps> = ({
                   <div className="grid grid-cols-4 gap-1.5 text-xs">
                     {/* S пола */}
                     <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/80 px-2 py-1 rounded-lg">
-                      <span className="text-[10px] font-bold text-blue-800">S:</span>
+                      <span className="text-[10px] font-bold text-blue-800 shrink-0">S:</span>
                       <input
                         type="number"
                         step="0.01"
@@ -248,24 +248,24 @@ export const DetectedRoomsModal: React.FC<DetectedRoomsModalProps> = ({
                         value={room.floorArea === 0 ? '' : room.floorArea}
                         placeholder="0.00"
                         onChange={e => handleUpdateRoom(room.id, { floorArea: parseFloat(e.target.value) || 0 })}
-                        className="w-14 text-center font-mono font-bold text-xs text-blue-800 bg-transparent focus:outline-none"
+                        className="flex-1 min-w-0 text-center font-mono font-bold text-xs text-blue-800 bg-transparent focus:outline-none px-0.5"
                       />
-                      <span className="text-[10px] font-bold text-blue-600">м²</span>
+                      <span className="text-[10px] font-bold text-blue-600 shrink-0">м²</span>
                     </div>
 
                     {/* H потолка */}
                     <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
-                      <span className="text-[10px] font-bold text-slate-500">H:</span>
+                      <span className="text-[10px] font-bold text-slate-500 shrink-0">H:</span>
                       <input
                         type="number"
-                        step="0.05"
+                        step="0.01"
                         min="1.8"
                         max="6.0"
                         value={room.ceilingHeight || globalCeilingHeight}
                         onChange={e => handleUpdateRoom(room.id, { ceilingHeight: parseFloat(e.target.value) || globalCeilingHeight })}
-                        className="w-10 text-center font-mono font-bold text-xs text-slate-800 bg-transparent focus:outline-none"
+                        className="flex-1 min-w-0 text-center font-mono font-bold text-xs text-slate-800 bg-transparent focus:outline-none px-0.5"
                       />
-                      <span className="text-[10px] font-bold text-slate-400">м</span>
+                      <span className="text-[10px] font-bold text-slate-400 shrink-0">м</span>
                     </div>
 
                     {/* Двери */}
@@ -277,9 +277,9 @@ export const DetectedRoomsModal: React.FC<DetectedRoomsModalProps> = ({
                         max="10"
                         value={room.doorsCount}
                         onChange={e => handleUpdateRoom(room.id, { doorsCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        className="w-8 text-center font-mono font-bold text-xs bg-transparent focus:outline-none"
+                        className="flex-1 min-w-0 text-center font-mono font-bold text-xs bg-transparent focus:outline-none px-0.5"
                       />
-                      <span className="text-[10px] text-slate-400">дв</span>
+                      <span className="text-[10px] text-slate-400 shrink-0">дв</span>
                     </div>
 
                     {/* Окна */}
@@ -291,9 +291,9 @@ export const DetectedRoomsModal: React.FC<DetectedRoomsModalProps> = ({
                         max="10"
                         value={room.windowsCount}
                         onChange={e => handleUpdateRoom(room.id, { windowsCount: Math.max(0, parseInt(e.target.value) || 0) })}
-                        className="w-8 text-center font-mono font-bold text-xs bg-transparent focus:outline-none"
+                        className="flex-1 min-w-0 text-center font-mono font-bold text-xs bg-transparent focus:outline-none px-0.5"
                       />
-                      <span className="text-[10px] text-slate-400">ок</span>
+                      <span className="text-[10px] text-slate-400 shrink-0">ок</span>
                     </div>
                   </div>
                 </div>
