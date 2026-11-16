@@ -533,32 +533,6 @@ export const App: React.FC = () => {
                   <option key={idx} value={street} />
                 ))}
               </datalist>
-
-              {/* Быстрые подсказки адресов по Краснодару */}
-              <div className="flex flex-wrap gap-1 pt-1">
-                <span className="text-[10px] text-slate-400 font-semibold self-center">Быстро:</span>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Дангиреева, д. 2, к.3, кв. 376' })}
-                  className="px-2 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold transition-colors cursor-pointer"
-                >
-                  ⚡ Дангиреева 2 к3
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Красная, д. 120, кв. 45' })}
-                  className="px-2 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
-                >
-                  ул. Красная 120
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientInfo({ ...clientInfo, address: 'г. Краснодар, ул. Западный Обход, д. 42' })}
-                  className="px-2 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
-                >
-                  Западный Обход
-                </button>
-              </div>
             </div>
           </div>
 
