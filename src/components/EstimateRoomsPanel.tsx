@@ -684,15 +684,6 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
 
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => setShowProposalModal(true)}
-                className="px-2.5 py-2 rounded-xl font-bold text-xs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer"
-                title="Сформировать фирменное Коммерческое Предложение для Заказчика (PDF)"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
-                <span>КП Заказчику</span>
-              </button>
-
-              <button
                 onClick={() => setShowExportModal(true)}
                 disabled={isExporting || (rooms.length === 0 && estimateMode === 'by_rooms')}
                 className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95 ${
@@ -700,7 +691,7 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                     ? 'bg-emerald-600 text-white' 
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                 } cursor-pointer`}
-                title="Экспорт в Excel / PDF"
+                title="Экспорт сметы в Excel"
               >
                 {exportSuccessMessage ? (
                   <>
@@ -709,8 +700,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                   </>
                 ) : (
                   <>
-                    <FileDown className="w-4 h-4 text-white" />
-                    <span>Экспорт</span>
+                    <FileSpreadsheet className="w-4 h-4 text-white" />
+                    <span>Смета</span>
                   </>
                 )}
               </button>
@@ -1450,27 +1441,16 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setShowProposalModal(true)}
-            disabled={isExporting}
-            className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-            title="Сформировать фирменное Коммерческое Предложение для Заказчика (PDF)"
-          >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span>КП Заказчику</span>
-          </button>
-
-          <button
-            onClick={() => setShowExportModal(true)}
-            disabled={isExporting || (rooms.length === 0 && estimateMode === 'by_rooms')}
-            className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-            title="Экспорт детальной сметы в Excel или PDF"
-          >
-            <FileDown className="w-4 h-4 shrink-0" />
-            <span>Смета (Excel/PDF)</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowExportModal(true)}
+          disabled={isExporting || (rooms.length === 0 && estimateMode === 'by_rooms')}
+          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all active:scale-98 disabled:opacity-50 cursor-pointer text-sm"
+          title="Экспорт детальной сметы в Excel"
+        >
+          <FileSpreadsheet className="w-4 h-4 shrink-0" />
+          <span>Смета</span>
+        </button>
       </div>
 
       {/* 4. МОДАЛЬНОЕ ОКНО ПАРАМЕТРОВ ЭКСПОРТА СМЕТЫ (EXCEL / PDF, БЕЗ ЦЕН, ОБМЕРОЧНЫЙ ПЛАН) */}
