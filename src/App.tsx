@@ -602,15 +602,17 @@ export const App: React.FC = () => {
       </div>
 
       {/* Модальное окно выбора работ по комнате (двойной клик по помещению) */}
-      <RoomFinishesModal
-        isOpen={!!activeFinishesRoom}
-        room={activeFinishesRoom}
-        onClose={() => setActiveFinishesRoom(null)}
-        selections={selections}
-        onSaveFinishes={handleSaveRoomFinishes}
-        allPirogs={effectivePirogs}
-        onPirogsUpdated={setEffectivePirogs}
-      />
+      {!!activeFinishesRoom && (
+        <RoomFinishesModal
+          isOpen={!!activeFinishesRoom}
+          room={activeFinishesRoom}
+          onClose={() => setActiveFinishesRoom(null)}
+          selections={selections}
+          onSaveFinishes={handleSaveRoomFinishes}
+          allPirogs={effectivePirogs}
+          onPirogsUpdated={setEffectivePirogs}
+        />
+      )}
     </div>
     </ErrorBoundary>
   );

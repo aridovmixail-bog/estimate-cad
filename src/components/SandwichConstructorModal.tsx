@@ -140,8 +140,6 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
     });
   }, [catalogSearch]);
 
-  if (!isOpen) return null;
-
   // Обновление свойств активного пирога
   const updateActivePirog = (updater: (prev: PirogDefinition) => PirogDefinition) => {
     setLocalPirogs(prev => {
@@ -316,6 +314,8 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
       materials: Math.round(materials)
     };
   }, [activePirog]);
+
+  if (!isOpen) return null;
 
   const modalContent = (
     <ErrorBoundary fallbackTitle="Конструктор бутербродов" onReset={onClose}>

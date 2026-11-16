@@ -15692,17 +15692,14 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           }}
         />
 
-        <SandwichConstructorModal
-
-          isOpen={showConstructorModal}
-
-          onClose={() => setShowConstructorModal(false)}
-
-          pirogs={customPirogs}
-
-          onSavePirogs={handleSaveCustomPirogs}
-
-        />
+        {showConstructorModal && (
+          <SandwichConstructorModal
+            isOpen={showConstructorModal}
+            onClose={() => setShowConstructorModal(false)}
+            pirogs={customPirogs}
+            onSavePirogs={handleSaveCustomPirogs}
+          />
+        )}
 
         {/* ЕДИНОЕ МОДАЛЬНОЕ ОКНО НАСТРОЕК ЧЕРТЕЖА, ШРИФТА, ГОСТ И СЕТКИ */}
         <CadSettingsModal
