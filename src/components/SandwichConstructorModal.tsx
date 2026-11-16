@@ -180,9 +180,9 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
       name: item.name,
       unit: item.unit,
       defaultUnitPrice: item.price,
-      economPrice: Math.round(item.price * 0.8),
+      economPrice: item.price,
       standardPrice: item.price,
-      designPrice: Math.round(item.price * 1.35),
+      designPrice: item.price,
       multiplierType: 'floorArea',
       source: item.section
     };
@@ -284,19 +284,15 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
 
   // Подсчет себестоимости активного пирога
   const activePirogTotals = useMemo(() => {
-    if (!activePirog) return { econom: 0, standard: 0, design: 0, materials: 0 };
+    if (!activePirog) return { works: 0, materials: 0, total: 0 };
     
-    let econom = 0;
-    let standard = 0;
-    let design = 0;
+    let works = 0;
     let materials = 0;
 
     (activePirog.works || []).forEach(w => {
       if (!w) return;
-      const def = Number(w.defaultUnitPrice) || 0;
-      econom += Number(w.economPrice != null ? w.economPrice : def);
-      standard += Number(w.standardPrice != null ? w.standardPrice : def);
-      design += Number(w.designPrice != null ? w.designPrice : def);
+      const price = Number(w.standardPrice != null ? w.standardPrice : (w.defaultUnitPrice || 0));
+      works += price;
     });
 
     (activePirog.materials || []).forEach(m => {
@@ -307,11 +303,13 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
       materials += (price * norm * safety);
     });
 
+    const worksRounded = Math.round(works);
+    const materialsRounded = Math.round(materials);
+
     return {
-      econom: Math.round(econom),
-      standard: Math.round(standard),
-      design: Math.round(design),
-      materials: Math.round(materials)
+      works: worksRounded,
+      materials: materialsRounded,
+      total: worksRounded + materialsRounded
     };
   }, [activePirog]);
 
@@ -470,23 +468,19 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                   </div>
                 </div>
 
-                {/* Расчетная стоимость по тарифам */}
-                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200">
-                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200 text-center">
-                    <span className="text-[10px] text-amber-800 font-bold uppercase block">Эконом:</span>
-                    <span className="text-sm font-black font-mono text-amber-900">{Math.round(activePirogTotals.econom * regionalCoeff)} ₽</span>
-                  </div>
+                {/* Итоговая стоимость пирога: Работы, Материалы, Итого под ключ */}
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200">
                   <div className="p-2 bg-blue-50/70 rounded-xl border border-blue-200 text-center">
-                    <span className="text-[10px] text-blue-800 font-bold uppercase block">Стандарт:</span>
-                    <span className="text-sm font-black font-mono text-blue-900">{Math.round(activePirogTotals.standard * regionalCoeff)} ₽</span>
+                    <span className="text-[10px] text-blue-800 font-bold uppercase block">Работы:</span>
+                    <span className="text-sm font-black font-mono text-blue-900">{activePirogTotals.works} ₽</span>
                   </div>
-                  <div className="p-2 bg-purple-50/70 rounded-xl border border-purple-200 text-center">
-                    <span className="text-[10px] text-purple-800 font-bold uppercase block">Дизайн:</span>
-                    <span className="text-sm font-black font-mono text-purple-900">{Math.round(activePirogTotals.design * regionalCoeff)} ₽</span>
+                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200 text-center">
+                    <span className="text-[10px] text-amber-800 font-bold uppercase block">Материалы:</span>
+                    <span className="text-sm font-black font-mono text-amber-900">{activePirogTotals.materials} ₽</span>
                   </div>
                   <div className="p-2 bg-emerald-50/70 rounded-xl border border-emerald-200 text-center">
-                    <span className="text-[10px] text-emerald-800 font-bold uppercase block">Материалы:</span>
-                    <span className="text-sm font-black font-mono text-emerald-900">{activePirogTotals.materials} ₽</span>
+                    <span className="text-[10px] text-emerald-800 font-bold uppercase block">Итого под ключ:</span>
+                    <span className="text-sm font-black font-mono text-emerald-900">{activePirogTotals.total} ₽</span>
                   </div>
                 </div>
               </div>
@@ -531,7 +525,7 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                         {/* Цены этапа */}
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="text-right">
-                            <span className="text-[9px] text-slate-500 block">Ставка (Стандарт):</span>
+                            <span className="text-[9px] text-slate-500 block">Цена:</span>
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
@@ -540,7 +534,13 @@ export const SandwichConstructorModal: React.FC<SandwichConstructorModalProps> =
                                   const val = parseFloat(e.target.value) || 0;
                                   updateActivePirog(p => ({
                                     ...p,
-                                    works: p.works.map(item => item.id === w.id ? { ...item, defaultUnitPrice: val, standardPrice: val } : item)
+                                    works: p.works.map(item => item.id === w.id ? { 
+                                      ...item, 
+                                      defaultUnitPrice: val, 
+                                      standardPrice: val,
+                                      economPrice: val,
+                                      designPrice: val 
+                                    } : item)
                                   }));
                                 }}
                                 className="w-16 px-1.5 py-0.5 bg-white border border-slate-300 rounded text-right font-mono font-bold text-slate-900 text-xs"
