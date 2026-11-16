@@ -8618,8 +8618,10 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
       {/* 3. КОНТЕЙНЕР ИНСТРУМЕНТОВ ЛЕНТЫ (RIBBON BAR - СВЕТЛЫЙ) */}
-
-      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-4 text-xs overflow-x-auto z-10 shrink-0 min-h-[58px]">
+      <div 
+        className="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center gap-3 text-xs overflow-x-auto no-scrollbar z-10 shrink-0 min-h-[52px] select-none whitespace-nowrap"
+        style={{ fontSize: '12px' }}
+      >
 
         {activeRibbonTab === 'drawing' && (
 
@@ -15805,10 +15807,11 @@ const handleBackdropUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 
       {/* 5. НИЖНЯЯ СИСТЕМНАЯ СТРОКА СОСТОЯНИЯ ГОСТ (STATUS BAR - СВЕТЛАЯ) */}
-
-      <div className="h-8 bg-slate-100 border-t border-slate-300 px-4 flex items-center justify-between text-xs select-none shrink-0 z-20">
-
-        <div className="flex items-center gap-3 font-mono text-[11px] text-slate-700">
+      <div 
+        className="h-8 bg-slate-100 border-t border-slate-300 px-3 flex items-center justify-between text-xs select-none shrink-0 z-20 whitespace-nowrap overflow-x-auto no-scrollbar"
+        style={{ fontSize: '11px' }}
+      >
+        <div className="flex items-center gap-2.5 font-mono text-[11px] text-slate-700 shrink-0">
 
           <span className="font-bold text-blue-700">
 
