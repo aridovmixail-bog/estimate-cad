@@ -693,10 +693,17 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
               <FileSpreadsheet className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-bold text-sm tracking-tight text-slate-900 flex items-center gap-1.5">
-                <span>Смета по комнатам</span>
-                <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded border border-blue-200">
-                  Краснодар 2026
+              <h2 className="font-bold text-sm tracking-tight text-slate-900 flex items-center gap-1.5 flex-wrap">
+                <span className="shrink-0">Смета по комнатам</span>
+                <span 
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[220px] sm:max-w-[320px] inline-block ${
+                    clientInfo.address 
+                      ? 'bg-blue-100 text-blue-900 border-blue-200' 
+                      : 'bg-slate-100 text-slate-500 border-slate-300 italic'
+                  }`}
+                  title={clientInfo.address ? `Адрес объекта: ${clientInfo.address}` : 'Адрес объекта (заполняется во вкладке «1. Обмер»)'}
+                >
+                  {clientInfo.address ? clientInfo.address : 'Адрес не указан'}
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500">
