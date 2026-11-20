@@ -120,9 +120,9 @@ export async function generateEstimatePdf(
                     1. Ремонтно-отделочные работы
                   </td>
                 </tr>
-                ${room.works.length === 0 ? `
+                ${room.works.filter(w => (Number(w.quantity) || 0) > 0 && (Number(w.total) || 0) > 0).length === 0 ? `
                   <tr><td colspan="${hidePrices ? 4 : 6}" style="padding: 6px; text-align: center; color: #94a3b8; font-style: italic;">— Нет назначенных работ —</td></tr>
-                ` : room.works.map((w, wIdx) => `
+                ` : room.works.filter(w => (Number(w.quantity) || 0) > 0 && (Number(w.total) || 0) > 0).map((w, wIdx) => `
                   <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 4px 6px; text-align: center; border-right: 1px solid #e2e8f0; color: #64748b;">${rIdx + 1}.${wIdx + 1}</td>
                     <td style="padding: 4px 8px; border-right: 1px solid #e2e8f0; color: #0f172a;">${w.name}</td>
@@ -137,13 +137,13 @@ export async function generateEstimatePdf(
               ` : ''}
 
               <!-- Подраздел: Материалы -->
-              ${includeMaterials && room.materials.length > 0 ? `
+              ${includeMaterials && room.materials.filter(m => (Number(m.quantity) || 0) > 0 && (Number(m.total) || 0) > 0).length > 0 ? `
                 <tr style="background-color: #fefce8; font-weight: 700; color: #854d0e; border-bottom: 1px solid #fef08a; border-top: 1px solid #e2e8f0;">
                   <td colspan="${hidePrices ? 4 : 6}" style="padding: 4px 8px; font-size: 9px; text-transform: uppercase;">
                     2. Черновые и расходные материалы
                   </td>
                 </tr>
-                ${room.materials.map((m, mIdx) => `
+                ${room.materials.filter(m => (Number(m.quantity) || 0) > 0 && (Number(m.total) || 0) > 0).map((m, mIdx) => `
                   <tr style="border-bottom: 1px solid #fefce8;">
                     <td style="padding: 4px 6px; text-align: center; border-right: 1px solid #e2e8f0; color: #854d0e;">М-${mIdx + 1}</td>
                     <td style="padding: 4px 8px; border-right: 1px solid #e2e8f0; color: #1c1917;">

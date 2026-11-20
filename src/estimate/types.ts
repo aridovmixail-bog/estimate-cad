@@ -150,6 +150,7 @@ export interface EstimateExportOptions {
   planImageBase64?: string | null;
   exportScope?: 'works' | 'materials' | 'both'; // 'works' = договорная смета на работы, 'materials' = ведомость материалов, 'both' = сводная
   skipAutoSave?: boolean;
+  constants?: { name: string; unit: string; quantity: number; unitPrice: number; total: number }[];
 }
 
 export interface RegionalPreset {

@@ -21,7 +21,8 @@ import {
   calculateTurnkey118Estimate, 
   DEFAULT_OBJECT_CONSTANTS, 
   ObjectChecklistConstants, 
-  KRASNODAR_118_ITEMS 
+  KRASNODAR_118_ITEMS,
+  BENCHMARK_63_ROOMS
 } from '../estimate/krasnodarTurnkeyTemplate';
 import { 
   FileSpreadsheet, 
@@ -46,7 +47,8 @@ import {
   HelpCircle,
   Briefcase,
   Zap,
-  Upload
+  Upload,
+  Settings
 } from 'lucide-react';
 
 interface EstimateRoomsPanelProps {
@@ -91,7 +93,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
   clientInfo: externalClientInfo,
   onClientInfoChange,
   selections: externalSelections,
-  onSelectionsChange
+  onSelectionsChange,
+  onLoadBenchmarkRooms
 }) => {
   // Информация о клиенте и объекте
   const [internalClientInfo, setInternalClientInfo] = useState(() => {
@@ -187,8 +190,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
     } catch {}
   }, [regionalPresetId]);
 
-  // Режим сметы: Эталон 118 строк Краснодара (по умолчанию) или по помещениям
-  const [estimateMode, setEstimateMode] = useState<'turnkey_118' | 'by_rooms'>('turnkey_118');
+  // Режим сметы: по помещениям (по умолчанию) или сводная смета
+  const [estimateMode, setEstimateMode] = useState<'by_rooms' | 'turnkey_118'>('by_rooms');
 
   // Константы и штучный чек-лист объекта
   const [checklistConstants, setChecklistConstants] = useState<ObjectChecklistConstants>(() => {
@@ -232,10 +235,19 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
     } catch {}
   }, [companySettings]);
 
-  // Расчет эталонной 118-позиционной сметы
+  // Расчет эталонной сметы Краснодара
   const turnkey118Result = useMemo(() => {
     return calculateTurnkey118Estimate(rooms, checklistConstants);
   }, [rooms, checklistConstants]);
+
+  // Активные штучные константы объекта (где количество > 0)
+  const activeConstants = useMemo(() => {
+    return turnkey118Result.rows.filter(r => r.isConstant && (Number(r.quantity) || 0) > 0);
+  }, [turnkey118Result]);
+
+  const activeConstantsTotal = useMemo(() => {
+    return activeConstants.reduce((sum, r) => sum + r.total, 0);
+  }, [activeConstants]);
 
   const handleLoadDangireevaTemplate = () => {
     setClientInfo({
@@ -351,6 +363,45 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
       regionalCoeff
     );
   }, [rooms, selections, effectivePirogs, electricCountsByRoom, plumbingCountsByRoom, clientInfo, tariff, regionalCoeff]);
+
+  // Подсчет только реальных активных позиций (объем > 0 и сумма > 0)
+  const activeCounts = useMemo(() => {
+    let works = 0;
+    let mats = 0;
+    projectEstimate.rooms.forEach(r => {
+      works += r.works.filter(w => (Number(w.quantity) || 0) > 0 && (Number(w.total) || 0) > 0).length;
+      mats += r.materials.filter(m => (Number(m.quantity) || 0) > 0 && (Number(m.total) || 0) > 0).length;
+    });
+    return {
+      works,
+      materials: mats,
+      constants: activeConstants.length,
+      total: works + mats + activeConstants.length
+    };
+  }, [projectEstimate.rooms, activeConstants]);
+
+  // Чистые итоговые суммы без нулей
+  const cleanGrandTotal = useMemo(() => {
+    return projectEstimate.totalWorksPrice + projectEstimate.totalMaterialsPrice + activeConstantsTotal;
+  }, [projectEstimate, activeConstantsTotal]);
+
+  const cleanWorksTotal = useMemo(() => {
+    return projectEstimate.totalWorksPrice + activeConstantsTotal;
+  }, [projectEstimate, activeConstantsTotal]);
+
+  const cleanMaterialsTotal = useMemo(() => {
+    return projectEstimate.totalMaterialsPrice;
+  }, [projectEstimate]);
+
+  // Активные этапы сводной сметы (фильтруем 0-строки и пустые этапы)
+  const activeStages = useMemo(() => {
+    return turnkey118Result.stages
+      .map(stage => ({
+        ...stage,
+        rows: stage.rows.filter(r => (Number(r.quantity) || 0) > 0 && (Number(r.total) || 0) > 0)
+      }))
+      .filter(stage => stage.rows.length > 0);
+  }, [turnkey118Result]);
 
   // Переключение аккордеона комнаты
   const toggleRoomAccordion = (roomId: string) => {
@@ -564,13 +615,23 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
       // 1. Экспорт в Excel (.xlsx)
       if (exportOptions.exportExcel) {
         if (estimateMode === 'turnkey_118') {
-          const blob = await generateTurnkey118Excel(clientInfo, turnkey118Result.rows, {
+          const activeRows = turnkey118Result.rows.filter(r => (Number(r.quantity) || 0) > 0);
+          const blob = await generateTurnkey118Excel(clientInfo, activeRows, {
             hidePrices: exportOptions.hidePrices,
             planImageBase64
           });
           downloadEstimateExcel(blob, `${docTypePrefix}_${safeAddr}_${projectEstimate.contractNumber}.xlsx`);
         } else {
-          const blob = await generateEstimateExcel(projectEstimate, opts);
+          const blob = await generateEstimateExcel(projectEstimate, {
+            ...opts,
+            constants: activeConstants.map(c => ({
+              name: c.name,
+              unit: c.unit,
+              quantity: c.quantity,
+              unitPrice: c.unitPrice,
+              total: c.total
+            }))
+          });
           downloadEstimateExcel(blob, `${docTypePrefix}_${safeAddr}_${projectEstimate.contractNumber}.xlsx`);
         }
       }
@@ -604,8 +665,8 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
         companyPhone: companySettings.phone,
         companyTagline: companySettings.tagline,
         priceMode: proposalPriceMode,
-        totalPrice: estimateMode === 'turnkey_118' ? turnkey118Result.grandTotal : projectEstimate.grandTotal,
-        stages: turnkey118Result.stages.map(s => ({ stageName: s.stageName, total: s.total }))
+        totalPrice: cleanGrandTotal,
+        stages: activeStages.map(s => ({ stageName: s.stageName, total: s.total }))
       });
       setShowProposalModal(false);
       setExportSuccessMessage('✅ Коммерческое предложение (КП) в PDF успешно сформировано!');
@@ -639,7 +700,7 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500">
-                {rooms.length} {rooms.length === 1 ? 'помещение' : (rooms.length > 4 ? 'помещений' : 'помещения')} • S пола: {projectEstimate.totalFloorArea} м²
+                {rooms.length} {rooms.length === 1 ? 'помещение' : (rooms.length > 4 ? 'помещений' : 'помещения')} • S пола: {projectEstimate.totalFloorArea} м² • <b className="text-emerald-700">{activeCounts.total} поз.</b>
               </p>
             </div>
           </div>
@@ -663,20 +724,16 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                 ИТОГО СМЕТА:
               </div>
               <div className="text-lg font-black font-mono text-emerald-600 tracking-tight leading-tight">
-                {formatPrice(estimateMode === 'turnkey_118' ? turnkey118Result.grandTotal : projectEstimate.grandTotal)} ₽
+                {formatPrice(cleanGrandTotal)} ₽
               </div>
-              <div className="text-[10px] text-slate-600 space-x-2 font-mono">
-                {estimateMode === 'turnkey_118' ? (
+              <div className="text-[10px] text-slate-600 space-x-1.5 font-mono">
+                <span>Раб: <b>{formatPrice(cleanWorksTotal)} ₽</b></span>
+                <span>•</span>
+                <span>Черн. мат: <b>{formatPrice(cleanMaterialsTotal)} ₽</b></span>
+                {activeConstants.length > 0 && (
                   <>
-                    <span title="Рассчитано из геометрии чертежа">📐 CAD: <b>{formatPrice(turnkey118Result.geometryTotal)} ₽</b></span>
                     <span>•</span>
-                    <span title="Штучные работы чек-листа">📌 Чек-лист: <b>{formatPrice(turnkey118Result.constantsTotal)} ₽</b></span>
-                  </>
-                ) : (
-                  <>
-                    <span>Раб: <b>{formatPrice(projectEstimate.totalWorksPrice)} ₽</b></span>
-                    <span>•</span>
-                    <span>Мат: <b>{formatPrice(projectEstimate.totalMaterialsPrice)} ₽</b></span>
+                    <span className="text-amber-800" title="Штучные работы чек-листа">Чек-лист: <b>{formatPrice(activeConstantsTotal)} ₽</b></span>
                   </>
                 )}
               </div>
@@ -726,17 +783,6 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
         {/* ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА СМЕТЫ */}
         <div className="flex bg-slate-200/70 p-1 rounded-xl gap-1 mt-2">
           <button
-            onClick={() => setEstimateMode('turnkey_118')}
-            className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              estimateMode === 'turnkey_118'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Sparkles className="w-3 h-3 text-emerald-600" />
-            <span>Сводная смета (118)</span>
-          </button>
-          <button
             onClick={() => setEstimateMode('by_rooms')}
             className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               estimateMode === 'by_rooms'
@@ -745,7 +791,18 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
             }`}
           >
             <Layers className="w-3 h-3 text-blue-600" />
-            <span>По комнатам</span>
+            <span>По комнатам ({rooms.length})</span>
+          </button>
+          <button
+            onClick={() => setEstimateMode('turnkey_118')}
+            className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              estimateMode === 'turnkey_118'
+                ? 'bg-white text-emerald-800 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3 h-3 text-emerald-600" />
+            <span>Сводная смета ({activeCounts.total} поз.)</span>
           </button>
         </div>
 
@@ -931,12 +988,16 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
               )}
             </div>
 
-            {/* 12 Этапов сводной сметы */}
+            {/* Этапы сводной сметы (только с ненулевым объемом) */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider px-1">
-                Разделы работ сводной сметы (118 позиций):
+                Разделы работ сводной сметы ({activeCounts.total} активных поз.):
               </div>
-              {turnkey118Result.stages.map((stage, sIdx) => {
+              {activeStages.length === 0 ? (
+                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                  В сводной смете пока нет добавленных позиций с ненулевым объемом.
+                </div>
+              ) : activeStages.map((stage, sIdx) => {
                 const isStageOpen = expandedCats[`stage_${sIdx}`] !== false;
                 return (
                   <div key={stage.stageName} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
@@ -997,15 +1058,28 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
         ) : (
           /* РЕЖИМ ПО КОМНАТАМ */
           rooms.length === 0 ? (
-            <div className="p-6 bg-white rounded-2xl border border-dashed border-slate-300 text-center space-y-2 mt-4">
+            <div className="p-6 bg-white rounded-2xl border border-dashed border-slate-300 text-center space-y-3 mt-4">
               <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
-              <div className="font-bold text-sm text-slate-700">Нет начерченных комнат</div>
+              <div className="font-bold text-sm text-slate-700">В смете пока нет добавленных комнат</div>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Начертите стены замкнутой комнаты на плане — помещение автоматически появится в смете со всеми площадями и периметром.
+                Начертите стены замкнутой комнаты на плане (вкладка «1. Обмер») — помещение автоматически появится в смете с расчетом работ и черновых материалов.
               </p>
+              {onLoadBenchmarkRooms && (
+                <button
+                  onClick={() => {
+                    handleLoadDangireevaTemplate();
+                    onLoadBenchmarkRooms(BENCHMARK_63_ROOMS);
+                  }}
+                  className="mt-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 mx-auto cursor-pointer shadow-sm transition-all"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Загрузить эталон (3-кв 63 м², ул. Дангиреева)</span>
+                </button>
+              )}
             </div>
           ) : (
-          projectEstimate.rooms.map((roomEst, roomIdx) => {
+          <div className="space-y-3">
+            {projectEstimate.rooms.map((roomEst, roomIdx) => {
             const isRoomExpanded = !!expandedRooms[roomEst.roomId];
             const roomSel = selections[roomEst.roomId] || {
               roomId: roomEst.roomId,
@@ -1014,6 +1088,9 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
               customWorks: [],
               customMaterials: []
             };
+            const activeWorks = roomEst.works.filter(w => (Number(w.quantity) || 0) > 0 && (Number(w.total) || 0) > 0);
+            const activeMats = roomEst.materials.filter(m => (Number(m.quantity) || 0) > 0 && (Number(m.total) || 0) > 0);
+            const isFinishesConfigOpen = !!expandedCats[`${roomEst.roomId}_finishes_config`];
 
             return (
               <div 
@@ -1067,35 +1144,240 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                   </div>
                 </div>
 
-                {/* ВНУТРЕННОСТЬ АККОРДЕОНА: ПОДРАЗДЕЛЫ (ПОТОЛОК, СТЕНЫ, ПОЛ...) */}
+                {/* ВНУТРЕННОСТЬ АККОРДЕОНА: ПОДРАЗДЕЛЫ (РАБОТЫ + ЧЕРНОВЫЕ МАТЕРИАЛЫ) */}
                 {isRoomExpanded && (
                   <div className="p-3 space-y-3 bg-slate-50/50">
-                    {/* Список категорий с выпадающим списком пирогов */}
-                    <div className="space-y-2">
-                      {PIROG_CATEGORIES.map(cat => {
-                        const currentPirogId = roomSel.selectedPirogIds[cat.id] || null;
-                        const availablePirogs = effectivePirogs.filter(p => p.category === cat.id);
-                        const isCatOpen = !!expandedCats[`${roomEst.roomId}_${cat.id}`];
-                        const activePirog = availablePirogs.find(p => p.id === currentPirogId);
+                    {/* 1. БЛОК РАБОТ ПО ПОМЕЩЕНИЮ */}
+                    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs">
+                      <div className="p-2 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Hammer className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                            Работы ({activeWorks.length})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-xs text-blue-900">
+                          {formatPrice(roomEst.worksTotal)} ₽
+                        </span>
+                      </div>
 
-                        return (
-                          <div 
-                            key={cat.id} 
-                            className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden"
-                          >
-                            {/* Строка выбора категории */}
-                            <div className="p-2 flex items-center justify-between gap-2 bg-slate-50/80">
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="text-sm">{cat.icon}</span>
-                                <span className="text-xs font-bold text-slate-800">{cat.name}:</span>
+                      {activeWorks.length === 0 ? (
+                        <div className="p-2.5 text-[11px] text-slate-400 italic text-center">
+                          В помещении пока нет активных работ. Настройте пироги отделки ниже.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-100 text-[11px]">
+                          {activeWorks.map((w, wIdx) => {
+                            const currentPrice = roomSel.overridePrices[w.workTemplateId || w.id] !== undefined 
+                              ? roomSel.overridePrices[w.workTemplateId || w.id] 
+                              : w.unitPrice;
+
+                            return (
+                              <div key={w.id} className="p-2 hover:bg-slate-50/80 flex items-center justify-between gap-1.5">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium text-slate-800 truncate" title={w.name}>
+                                    <span className="text-[10px] text-slate-400 font-mono mr-1">#{wIdx + 1}</span>
+                                    {w.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    Объем: <b>{w.quantity} {w.unit}</b>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="flex items-center gap-0.5">
+                                    <input
+                                      type="number"
+                                      value={currentPrice}
+                                      onChange={(e) => handlePriceChange(roomEst.roomId, w.workTemplateId || w.id, e.target.value)}
+                                      className="w-16 px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-right text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                      title="Нажмите для изменения цены за единицу"
+                                    />
+                                    <span className="text-[10px] text-slate-400">₽</span>
+                                  </div>
+                                  <div className="w-18 text-right font-mono font-bold text-blue-900 text-xs">
+                                    {formatPrice(w.total)} ₽
+                                  </div>
+                                </div>
                               </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
 
-                              {/* ВЫПАДАЮЩИЙ СПИСОК ПИРОГОВ */}
-                              <div className="flex-1 max-w-[240px]">
+                    {/* 2. БЛОК ЧЕРНОВЫХ МАТЕРИАЛОВ ПО ПОМЕЩЕНИЮ */}
+                    <div className="bg-white rounded-lg border border-amber-200/80 overflow-hidden shadow-2xs">
+                      <div className="p-2 bg-amber-50/70 border-b border-amber-200/80 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-amber-600" />
+                          <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                            Черновые материалы ({activeMats.length})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-xs text-amber-900">
+                          {formatPrice(roomEst.materialsTotal)} ₽
+                        </span>
+                      </div>
+
+                      {activeMats.length === 0 ? (
+                        <div className="p-2.5 text-[11px] text-amber-800/60 italic text-center">
+                          В помещении пока нет активных черновых материалов
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-amber-100/60 text-[11px]">
+                          {activeMats.map((m, mIdx) => {
+                            const currentPrice = roomSel.overridePrices[m.materialTemplateId || m.id] !== undefined 
+                              ? roomSel.overridePrices[m.materialTemplateId || m.id] 
+                              : m.unitPrice;
+
+                            return (
+                              <div key={m.id} className="p-2 hover:bg-amber-50/40 flex items-center justify-between gap-1.5">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium text-slate-800 truncate" title={m.name}>
+                                    <span className="text-[10px] text-amber-600 font-mono mr-1">М-{mIdx + 1}</span>
+                                    {m.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
+                                    <span>Объём: <b>{m.quantity} {m.unit}</b></span>
+                                    {m.physicalQuantity ? (
+                                      <span className="text-amber-800 bg-amber-100/80 px-1 py-0.2 rounded text-[9.5px]" title={m.packageType ? `Фасовка: ${m.packageType}` : undefined}>
+                                        расход: ~<b>{m.physicalQuantity} {m.physicalUnit || m.unit}</b>
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="flex items-center gap-0.5">
+                                    <input
+                                      type="number"
+                                      value={currentPrice}
+                                      onChange={(e) => handlePriceChange(roomEst.roomId, m.materialTemplateId || m.id, e.target.value)}
+                                      className="w-16 px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-right text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                                      title="Нажмите для изменения цены за единицу"
+                                    />
+                                    <span className="text-[10px] text-slate-400">₽</span>
+                                  </div>
+                                  <div className="w-18 text-right font-mono font-bold text-amber-900 text-xs">
+                                    {formatPrice(m.total)} ₽
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ДОПОЛНИТЕЛЬНЫЕ РУЧНЫЕ ПОЗИЦИИ */}
+                    {(roomSel.customWorks.length > 0 || roomSel.customMaterials.length > 0) && (
+                      <div className="p-2 bg-indigo-50/60 rounded-lg border border-indigo-200 text-xs space-y-1.5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-900">
+                          Дополнительные ручные позиции:
+                        </div>
+                        {roomSel.customWorks.map(w => (
+                          <div key={w.id} className="flex items-center justify-between bg-white p-1 rounded border border-indigo-100 font-mono text-[11px]">
+                            <span className="text-slate-800 truncate">{w.name} ({w.quantity} {w.unit})</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-indigo-900">{formatPrice(w.total)} ₽</span>
+                              <button 
+                                onClick={() => handleDeleteCustomRow(roomEst.roomId, 'work', w.id)}
+                                className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                                title="Удалить"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {roomSel.customMaterials.map(m => (
+                          <div key={m.id} className="flex items-center justify-between bg-white p-1 rounded border border-indigo-100 font-mono text-[11px]">
+                            <span className="text-slate-800 truncate">{m.name} ({m.quantity} {m.unit})</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-indigo-900">{formatPrice(m.total)} ₽</span>
+                              <button 
+                                onClick={() => handleDeleteCustomRow(roomEst.roomId, 'material', m.id)}
+                                className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                                title="Удалить"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* КНОПКИ: ДОБАВИТЬ РАБОТУ / МАТЕРИАЛ, НАСТРОЙКА ПИРОГОВ И СБРОС ЦЕН */}
+                    <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => setAddingRowToRoom({ roomId: roomEst.roomId, type: 'work' })}
+                          className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded text-[11px] font-semibold text-slate-700 flex items-center gap-1 shadow-2xs cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3 text-blue-600" />
+                          <span>+ Своя работа</span>
+                        </button>
+                        <button
+                          onClick={() => setAddingRowToRoom({ roomId: roomEst.roomId, type: 'material' })}
+                          className="px-2 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded text-[11px] font-semibold text-slate-700 flex items-center gap-1 shadow-2xs cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3 text-amber-600" />
+                          <span>+ Свой материал</span>
+                        </button>
+                        <button
+                          onClick={() => setExpandedCats(prev => ({ ...prev, [`${roomEst.roomId}_finishes_config`]: !prev[`${roomEst.roomId}_finishes_config`] }))}
+                          className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shadow-2xs cursor-pointer border transition-colors ${
+                            isFinishesConfigOpen
+                              ? 'bg-blue-100/80 border-blue-300 text-blue-900 font-bold'
+                              : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
+                          }`}
+                        >
+                          <Layers className="w-3 h-3 text-blue-600" />
+                          <span>Настроить пироги отделки</span>
+                          {isFinishesConfigOpen ? (
+                            <ChevronDown className="w-3 h-3 text-blue-600" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 text-slate-400" />
+                          )}
+                        </button>
+                      </div>
+
+                      {Object.keys(roomSel.overridePrices).length > 0 && (
+                        <button
+                          onClick={() => handleResetRoomPrices(roomEst.roomId)}
+                          className="text-[10px] text-slate-500 hover:text-rose-600 flex items-center gap-0.5 cursor-pointer"
+                          title="Сбросить все измененные цены к стандартным по Краснодару"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Сбросить цены</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* РАСКРЫВАЮЩИЙСЯ БЛОК ВЫБОРА ПИРОГОВ ОТДЕЛКИ */}
+                    {isFinishesConfigOpen && (
+                      <div className="p-2.5 bg-slate-100/90 rounded-xl border border-slate-300 space-y-2 text-xs animate-in fade-in">
+                        <div className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Выбор пирогов отделки для помещения {roomEst.roomName}:</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {PIROG_CATEGORIES.map(cat => {
+                            const currentPirogId = roomSel.selectedPirogIds[cat.id] || null;
+                            const availablePirogs = effectivePirogs.filter(p => p.category === cat.id);
+
+                            return (
+                              <div key={cat.id} className="p-1.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                                <div className="flex items-center gap-1.5 shrink-0 min-w-[110px]">
+                                  <span className="text-xs">{cat.icon}</span>
+                                  <span className="text-[11px] font-bold text-slate-700">{cat.name}:</span>
+                                </div>
                                 <select
                                   value={currentPirogId || 'none'}
                                   onChange={(e) => handlePirogChange(roomEst.roomId, cat.id, e.target.value)}
-                                  className="w-full text-[11px] font-medium px-2 py-1 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                                  className="flex-1 text-[11px] font-medium px-2 py-1 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
                                 >
                                   <option value="none">— Без отделки / Пропустить —</option>
                                   {availablePirogs.map(p => (
@@ -1105,127 +1387,11 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                                   ))}
                                 </select>
                               </div>
-
-                              {/* Кнопка раскрытия состава пирога */}
-                              {activePirog && (
-                                <button
-                                  onClick={() => toggleCategoryAccordion(roomEst.roomId, cat.id)}
-                                  className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-0.5 shrink-0 px-1 py-0.5 rounded hover:bg-blue-50 cursor-pointer"
-                                  title="Показать состав работ и материалов"
-                                >
-                                  <span>{isCatOpen ? 'Скрыть' : 'Состав'}</span>
-                                  {isCatOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* РАСКРЫВАЮЩИЙСЯ СОСТАВ ПИРОГА (РАБОТЫ + МАТЕРИАЛЫ С ЦЕНАМИ) */}
-                            {isCatOpen && activePirog && (
-                              <div className="p-2.5 border-t border-slate-100 bg-white text-[11px] space-y-2.5">
-                                <div className="text-[10px] text-slate-500 italic pb-1 border-b border-slate-100">
-                                  {activePirog.description}
-                                </div>
-
-                                {/* Список работ пирога */}
-                                <div className="space-y-1">
-                                  <div className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
-                                    <Hammer className="w-3 h-3 text-blue-600" />
-                                    <span>Работы по подразделу:</span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {activePirog.works.map(w => {
-                                      const row = roomEst.works.find(item => item.workTemplateId === w.id);
-                                      const currentPrice = roomSel.overridePrices[w.id] !== undefined 
-                                        ? roomSel.overridePrices[w.id] 
-                                        : w.defaultUnitPrice;
-
-                                      return (
-                                        <div key={w.id} className="flex items-center justify-between gap-1 p-1 bg-slate-50 rounded border border-slate-200/60 text-slate-700">
-                                          <div className="min-w-0 flex-1">
-                                            <div className="truncate text-slate-800 font-medium" title={w.name}>
-                                              {w.name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 font-mono">
-                                              Объем: <b>{row ? row.quantity : '—'} {w.unit}</b>
-                                            </div>
-                                          </div>
-
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            <div className="flex items-center gap-0.5">
-                                              <input
-                                                type="number"
-                                                value={currentPrice}
-                                                onChange={(e) => handlePriceChange(roomEst.roomId, w.id, e.target.value)}
-                                                className="w-16 px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-right text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                                                title="Нажмите для изменения цены за единицу"
-                                              />
-                                              <span className="text-[10px] text-slate-400">₽</span>
-                                            </div>
-                                            <div className="w-16 text-right font-mono font-bold text-blue-800 text-xs">
-                                              {row ? formatPrice(row.total) : '0'} ₽
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {/* Список материалов пирога */}
-                                <div className="space-y-1 pt-1 border-t border-slate-100">
-                                  <div className="text-[10px] uppercase font-bold text-amber-600 flex items-center gap-1">
-                                    <Package className="w-3 h-3 text-amber-600" />
-                                    <span>Черновые материалы:</span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {activePirog.materials.map(m => {
-                                      const row = roomEst.materials.find(item => item.materialTemplateId === m.id);
-                                      const currentPrice = roomSel.overridePrices[m.id] !== undefined 
-                                        ? roomSel.overridePrices[m.id] 
-                                        : m.defaultUnitPrice;
-
-                                      return (
-                                        <div key={m.id} className="flex items-center justify-between gap-1 p-1 bg-amber-50/40 rounded border border-amber-200/50 text-slate-700">
-                                          <div className="min-w-0 flex-1">
-                                            <div className="truncate text-slate-800 font-medium" title={m.name}>
-                                              {m.name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
-                                              <span>Объём: <b>{row ? row.quantity : '—'} {row?.unit || 'м²'}</b></span>
-                                              {row?.physicalQuantity ? (
-                                                <span className="text-amber-800 bg-amber-100/70 px-1 rounded text-[9.5px]" title={m.packageType ? `Фасовка: ${m.packageType}` : undefined}>
-                                                  расход: ~<b>{row.physicalQuantity} {row.physicalUnit || m.unit}</b>
-                                                </span>
-                                              ) : null}
-                                            </div>
-                                          </div>
-
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            <div className="flex items-center gap-0.5">
-                                              <input
-                                                type="number"
-                                                value={currentPrice}
-                                                onChange={(e) => handlePriceChange(roomEst.roomId, m.id, e.target.value)}
-                                                className="w-16 px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold text-right text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                                                title="Нажмите для изменения цены за единицу"
-                                              />
-                                              <span className="text-[10px] text-slate-400">₽</span>
-                                            </div>
-                                            <div className="w-16 text-right font-mono font-bold text-amber-900 text-xs">
-                                              {row ? formatPrice(row.total) : '0'} ₽
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* ДОПОЛНИТЕЛЬНЫЕ РУЧНЫЕ ПОЗИЦИИ */}
                     {(roomSel.customWorks.length > 0 || roomSel.customMaterials.length > 0) && (
@@ -1426,32 +1592,242 @@ export const EstimateRoomsPanel: React.FC<EstimateRoomsPanelProps> = ({
                 )}
               </div>
             );
-          })
-        ))}
-      </div>
+          })}
 
-      {/* 3. ПОДВАЛ ПАНЕЛИ СМЕТЫ */}
-      <div className="p-3 bg-white border-t border-slate-200 shrink-0 text-xs space-y-2">
-        <div className="flex items-center justify-between text-slate-600">
-          <span className="font-medium">
-            {estimateMode === 'turnkey_118' ? 'Итого под ключ (Краснодар):' : 'Сводная стоимость объекта:'}
-          </span>
-          <span className="font-mono font-bold text-slate-900 text-sm">
-            {formatPrice(estimateMode === 'turnkey_118' ? turnkey118Result.grandTotal : projectEstimate.grandTotal)} ₽
-          </span>
+          {/* 📌 ЧЕК-ЛИСТ ШТУЧНЫХ И ОБЩИХ РАБОТ ОБЪЕКТА */}
+          <div className="bg-white rounded-xl border border-amber-300 shadow-2xs overflow-hidden">
+            <div 
+              onClick={() => setIsChecklistExpanded(!isChecklistExpanded)}
+              className="p-3 cursor-pointer flex items-center justify-between gap-2 bg-gradient-to-r from-amber-50 to-orange-50/50 border-b border-amber-200"
+            >
+              <div className="flex items-center gap-2">
+                <ListTodo className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <div className="font-bold text-xs text-amber-950 flex items-center gap-1.5 flex-wrap">
+                    <span>Общие и штучные работы объекта</span>
+                    <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded font-bold">
+                      {formatPrice(activeConstantsTotal)} ₽
+                    </span>
+                    <span className="text-[10px] text-amber-700">
+                      ({activeConstants.length} активных поз.)
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-amber-800">
+                    Точки электрики, сантехники, короба, двери, вывоз мусора, клининг
+                  </div>
+                </div>
+              </div>
+              <button className="text-amber-700 p-0.5">
+                {isChecklistExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Список активных позиций чек-листа в свернутом виде */}
+            {!isChecklistExpanded && (
+              activeConstants.length === 0 ? (
+                <div className="p-3 text-[11px] text-slate-400 italic text-center flex items-center justify-between gap-2">
+                  <span>Штучные работы не заданы (0 ₽)</span>
+                  <button
+                    onClick={() => setIsChecklistExpanded(true)}
+                    className="text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer"
+                  >
+                    Настроить точки и вывоз мусора
+                  </button>
+                </div>
+              ) : (
+                <div className="p-2.5 divide-y divide-amber-100 text-[11px] bg-amber-50/20">
+                  {activeConstants.map(c => (
+                    <div key={c.id} className="py-1.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1 truncate text-slate-800">
+                        <span className="font-medium">{c.name}</span>
+                      </div>
+                      <div className="shrink-0 font-mono text-[11px] text-right">
+                        <span className="text-slate-500">{c.quantity} {c.unit} × {formatPrice(c.unitPrice)} = </span>
+                        <span className="font-bold text-amber-900">{formatPrice(c.total)} ₽</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      onClick={() => setIsChecklistExpanded(true)}
+                      className="text-[11px] text-amber-800 hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Settings className="w-3 h-3 text-amber-600" />
+                      <span>Изменить объемы чек-листа</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Форма редактирования констант чек-листа (когда развернуто) */}
+            {isChecklistExpanded && (
+              <div className="p-3 space-y-3 text-xs bg-amber-50/20">
+                <div className="p-2 bg-amber-100/60 border border-amber-300/80 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <b>Штучный чек-лист объекта:</b>
+                    <div className="mt-0.5 text-[10px] text-amber-800">
+                      Укажите реальное количество точек и услуг для текущего объекта. Позиции с нулевым объемом автоматически исключаются из сметы.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">1. Сантехника</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Точки ГВС/ХВС (2200 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.plumbingHotColdPoints} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, plumbingHotColdPoints: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Точки канализации КС (1800 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.plumbingSewerPoints} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, plumbingSewerPoints: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Инсталляция унитаза (4500 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.plumbingToiletInstallation} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, plumbingToiletInstallation: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">2. Электрика</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Черновые точки (1700 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.electricRoughPoints} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, electricRoughPoints: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Чистовая электрика (400 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.electricFinishPoints} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, electricFinishPoints: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Светильники GX53 (700 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.ceilingLampsGX53Count} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, ceilingLampsGX53Count: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">3. Монтаж и ГКЛ</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Душевой поддон:</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.bathShowerTrayPoddon} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, bathShowerTrayPoddon: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Опуск проемов ГКЛ (750 ₽):</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.corridorDoorTransomGyp} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, corridorDoorTransomGyp: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Ниши ГКЛ (м):</span>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={checklistConstants.kitchenGypNicheM} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, kitchenGypNicheM: Number(e.target.value), toiletGypNicheM: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">4. Двери, мусор, сервис</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Двери межкомнатные:</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.interiorDoorsCount} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, interiorDoorsCount: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Вывоз мусора Газель:</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.garbageRemovalTrips} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, garbageRemovalTrips: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-700">Клининг после ремонта:</span>
+                      <input 
+                        type="number" 
+                        value={checklistConstants.cleaningAfterRenovation} 
+                        onChange={e => setChecklistConstants({ ...checklistConstants, cleaningAfterRenovation: Number(e.target.value) })}
+                        className="w-12 px-1 py-0.5 border rounded text-right font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      ))}
+    </div>
 
-        <button
-          type="button"
-          onClick={() => setShowExportModal(true)}
-          disabled={isExporting || (rooms.length === 0 && estimateMode === 'by_rooms')}
-          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all active:scale-98 disabled:opacity-50 cursor-pointer text-sm"
-          title="Экспорт детальной сметы в Excel"
-        >
-          <FileSpreadsheet className="w-4 h-4 shrink-0" />
-          <span>Смета</span>
-        </button>
+    {/* 3. ПОДВАЛ ПАНЕЛИ СМЕТЫ */}
+    <div className="p-3 bg-white border-t border-slate-200 shrink-0 text-xs space-y-2">
+      <div className="flex items-center justify-between text-slate-600">
+        <span className="font-medium">
+          Сводная стоимость объекта:
+        </span>
+        <span className="font-mono font-bold text-slate-900 text-sm">
+          {formatPrice(cleanGrandTotal)} ₽
+        </span>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowExportModal(true)}
+        disabled={isExporting || (rooms.length === 0 && activeCounts.total === 0)}
+        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all active:scale-98 disabled:opacity-50 cursor-pointer text-sm"
+        title="Экспорт детальной сметы в Excel"
+      >
+        <FileSpreadsheet className="w-4 h-4 shrink-0" />
+        <span>Смета</span>
+      </button>
+    </div>
 
       {/* 4. МОДАЛЬНОЕ ОКНО ПАРАМЕТРОВ ЭКСПОРТА СМЕТЫ (EXCEL / PDF, БЕЗ ЦЕН, ОБМЕРОЧНЫЙ ПЛАН) */}
       {showExportModal && createPortal(

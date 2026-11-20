@@ -258,8 +258,9 @@ export async function generateEstimateExcel(
     ws.getRow(currentRow).height = 19;
     currentRow++;
 
+    const activeWorks = room.works.filter(w => (Number(w.quantity) || 0) > 0 && (Number(w.total) || 0) > 0);
     const worksStartRow = currentRow;
-    if (room.works.length === 0) {
+    if (activeWorks.length === 0) {
       ws.mergeCells(currentRow, 1, currentRow, totalCols);
       const emptyCell = ws.getCell(currentRow, 1);
       emptyCell.value = '— Нет назначенных работ —';
@@ -268,7 +269,7 @@ export async function generateEstimateExcel(
       ws.getRow(currentRow).height = 18;
       currentRow++;
     } else {
-      room.works.forEach((w, wIdx) => {
+      activeWorks.forEach((w, wIdx) => {
         const row = ws.getRow(currentRow);
         row.height = 19;
 
@@ -319,7 +320,7 @@ export async function generateEstimateExcel(
       worksSubCell.border = borderThin;
 
       const worksSumCell = ws.getCell(currentRow, 6);
-      if (room.works.length > 0) {
+      if (activeWorks.length > 0) {
         worksSumCell.value = { formula: `SUM(F${worksStartRow}:F${worksEndRow})`, result: room.worksTotal };
       } else {
         worksSumCell.value = 0;
@@ -345,8 +346,9 @@ export async function generateEstimateExcel(
       ws.getRow(currentRow).height = 19;
       currentRow++;
 
+      const activeMats = room.materials.filter(m => (Number(m.quantity) || 0) > 0 && (Number(m.total) || 0) > 0);
       const matsStartRow = currentRow;
-      if (room.materials.length === 0) {
+      if (activeMats.length === 0) {
         ws.mergeCells(currentRow, 1, currentRow, totalCols);
         const emptyCell = ws.getCell(currentRow, 1);
         emptyCell.value = '— Нет расчетных материалов —';
@@ -355,7 +357,7 @@ export async function generateEstimateExcel(
         ws.getRow(currentRow).height = 18;
         currentRow++;
       } else {
-        room.materials.forEach((m, mIdx) => {
+        activeMats.forEach((m, mIdx) => {
           const row = ws.getRow(currentRow);
           row.height = 19;
 
@@ -408,7 +410,7 @@ export async function generateEstimateExcel(
         matsSubCell.border = borderThin;
 
         const matsSumCell = ws.getCell(currentRow, 6);
-        if (room.materials.length > 0) {
+        if (activeMats.length > 0) {
           matsSumCell.value = { formula: `SUM(F${matsStartRow}:F${matsEndRow})`, result: room.materialsTotal };
         } else {
           matsSumCell.value = 0;
@@ -456,6 +458,83 @@ export async function generateEstimateExcel(
 
     currentRow++;
   });
+
+  // 3. ОБЩИЕ И ШТУЧНЫЕ РАБОТЫ ОБЪЕКТА (ЧЕК-ЛИСТ КОНСТАНТ)
+  const activeConstants = (options?.constants || []).filter(c => (Number(c.quantity) || 0) > 0 && (Number(c.total) || 0) > 0);
+  let constantsStartRow = 0;
+  let constantsEndRow = 0;
+  let constantsTotalRow = 0;
+  const constantsTotalSum = activeConstants.reduce((s, c) => s + c.total, 0);
+
+  if (activeConstants.length > 0) {
+    ws.mergeCells(currentRow, 1, currentRow, totalCols);
+    const constHeaderCell = ws.getCell(currentRow, 1);
+    constHeaderCell.value = 'ОБЩИЕ И ШТУЧНЫЕ РАБОТЫ ОБЪЕКТА (ЧЕК-ЛИСТ КОНСТАНТ)';
+    constHeaderCell.fill = fillRoomHeader;
+    constHeaderCell.font = fontRoomHeader;
+    constHeaderCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    ws.getRow(currentRow).height = 22;
+    currentRow++;
+
+    constantsStartRow = currentRow;
+    activeConstants.forEach((c, cIdx) => {
+      const row = ws.getRow(currentRow);
+      row.height = 19;
+      row.getCell(1).value = `Ч-${cIdx + 1}`;
+      row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(1).border = borderThin;
+
+      row.getCell(2).value = c.name;
+      row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+      row.getCell(2).border = borderThin;
+
+      row.getCell(3).value = c.unit;
+      row.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
+      row.getCell(3).border = borderThin;
+
+      row.getCell(4).value = c.quantity;
+      row.getCell(4).numFmt = '#,##0.00';
+      row.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' };
+      row.getCell(4).border = borderThin;
+
+      if (!hidePrices) {
+        row.getCell(5).value = c.unitPrice;
+        row.getCell(5).numFmt = '#,##0';
+        row.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
+        row.getCell(5).border = borderThin;
+
+        row.getCell(6).value = { formula: `D${currentRow}*E${currentRow}`, result: c.total };
+        row.getCell(6).numFmt = '#,##0';
+        row.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
+        row.getCell(6).border = borderThin;
+        row.getCell(6).font = { bold: true };
+      }
+      currentRow++;
+    });
+    constantsEndRow = currentRow - 1;
+
+    if (!hidePrices) {
+      constantsTotalRow = currentRow;
+      ws.mergeCells(currentRow, 1, currentRow, 5);
+      const constSubCell = ws.getCell(currentRow, 1);
+      constSubCell.value = 'ИТОГО ОБЩИЕ И ШТУЧНЫЕ РАБОТЫ:';
+      constSubCell.font = { ...fontSubtotal, bold: true, color: { argb: 'FF92400E' } };
+      constSubCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      constSubCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      constSubCell.border = borderThin;
+
+      const constSumCell = ws.getCell(currentRow, 6);
+      constSumCell.value = { formula: `SUM(F${constantsStartRow}:F${constantsEndRow})`, result: constantsTotalSum };
+      constSumCell.numFmt = '#,##0';
+      constSumCell.font = { ...fontSubtotal, bold: true, color: { argb: 'FF92400E' } };
+      constSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      constSumCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      constSumCell.border = borderThin;
+      ws.getRow(currentRow).height = 22;
+      currentRow++;
+    }
+    currentRow++;
+  }
 
   // ИТОГОВАЯ СВОДНАЯ ТАБЛИЦА
   currentRow++;
@@ -612,6 +691,38 @@ export async function generateEstimateExcel(
 
       currentRow++;
     });
+    if (!hidePrices && constantsTotalRow > 0) {
+      const row = ws.getRow(currentRow);
+      row.height = 19;
+      row.getCell(1).value = roomSubtotalRowIndices.length + 1;
+      row.getCell(1).alignment = { horizontal: 'center' };
+      row.getCell(1).border = borderThin;
+
+      row.getCell(2).value = 'Чек-лист штучных работ (электрика, сантехника, вывоз мусора)';
+      row.getCell(2).border = borderThin;
+
+      row.getCell(3).value = '—';
+      row.getCell(3).alignment = { horizontal: 'center' };
+      row.getCell(3).border = borderThin;
+
+      row.getCell(4).value = { formula: `F${constantsTotalRow}`, result: constantsTotalSum };
+      row.getCell(4).numFmt = '#,##0';
+      row.getCell(4).alignment = { horizontal: 'right' };
+      row.getCell(4).border = borderThin;
+
+      row.getCell(5).value = 0;
+      row.getCell(5).numFmt = '#,##0';
+      row.getCell(5).alignment = { horizontal: 'right' };
+      row.getCell(5).border = borderThin;
+
+      row.getCell(6).value = { formula: `F${constantsTotalRow}`, result: constantsTotalSum };
+      row.getCell(6).numFmt = '#,##0';
+      row.getCell(6).font = { bold: true };
+      row.getCell(6).alignment = { horizontal: 'right' };
+      row.getCell(6).border = borderThin;
+
+      currentRow++;
+    }
     const summaryEndRow = currentRow - 1;
 
     // ИТОГО ПО ОБЪЕКТУ СВОДНОЕ
@@ -635,7 +746,10 @@ export async function generateEstimateExcel(
     finalRow.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
     finalRow.getCell(3).border = borderDoubleBottom;
 
-    finalRow.getCell(4).value = { formula: `SUM(D${summaryStartRow}:D${summaryEndRow})`, result: estimate.totalWorksPrice };
+    const totalWorksWithConst = estimate.totalWorksPrice + constantsTotalSum;
+    const totalGrandWithConst = totalWorksWithConst + estimate.totalMaterialsPrice;
+
+    finalRow.getCell(4).value = { formula: `SUM(D${summaryStartRow}:D${summaryEndRow})`, result: totalWorksWithConst };
     finalRow.getCell(4).numFmt = '#,##0';
     finalRow.getCell(4).font = fontGrandTotal;
     finalRow.getCell(4).fill = fillGrandTotal;
@@ -649,7 +763,7 @@ export async function generateEstimateExcel(
     finalRow.getCell(5).alignment = { horizontal: 'right', vertical: 'middle' };
     finalRow.getCell(5).border = borderDoubleBottom;
 
-    finalRow.getCell(6).value = { formula: `SUM(F${summaryStartRow}:F${summaryEndRow})`, result: estimate.grandTotal };
+    finalRow.getCell(6).value = { formula: `SUM(F${summaryStartRow}:F${summaryEndRow})`, result: totalGrandWithConst };
     finalRow.getCell(6).numFmt = '#,##0';
     finalRow.getCell(6).font = fontGrandTotal;
     finalRow.getCell(6).fill = fillGrandTotal;
@@ -760,11 +874,23 @@ export async function generateTurnkey118Excel(
   }
   row++;
 
-  // Группируем по этапам
+  // Группируем по этапам (только активные позиции с ненулевым объемом)
   let currentStage = '';
   let currentSub = '';
 
-  turnkeyRows.forEach((item) => {
+  const activeTurnkeyRows = turnkeyRows.filter(item => (Number(item.quantity) || 0) > 0);
+
+  if (activeTurnkeyRows.length === 0) {
+    const emptyRow = ws.getRow(row);
+    emptyRow.height = 20;
+    ws.mergeCells(`A${row}:G${row}`);
+    const c = emptyRow.getCell(1);
+    c.value = '— В смете нет активных позиций с ненулевым объемом —';
+    c.font = { name: 'Calibri', size: 10, italic: true };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    row++;
+  } else {
+    activeTurnkeyRows.forEach((item) => {
     if (item.stageName !== currentStage) {
       currentStage = item.stageName;
       currentSub = '';
@@ -821,6 +947,7 @@ export async function generateTurnkey118Excel(
     }
     row++;
   });
+  }
 
   // ИТОГО СТРОКА
   if (!hidePrices) {
