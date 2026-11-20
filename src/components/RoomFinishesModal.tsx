@@ -710,10 +710,10 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                 setIsCustomCreatorOpen(true);
               }}
               className="px-2.5 py-1 text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-lg shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
-              title="Создать свой собственный пирог отделки с нуля с любыми работами и ценами"
+              title="Создать новый пирог отделки с любыми работами и ценами"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>+ Свой пирог с нуля</span>
+              <span>+ Новый пирог</span>
             </button>
 
             <button
@@ -818,7 +818,7 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                             </option>
                           ))}
                           <option value="__create_custom__" className="font-bold text-indigo-700 bg-indigo-50">
-                            ✨ + Создать свой пирог отделки с нуля...
+                            ✨ + Новый пирог...
                           </option>
                         </select>
                         <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -826,28 +826,13 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Кнопки редактирования и состава пирога */}
+                  {/* Кнопка состава пирога и цен */}
                   {item.pirog && (
-                    <div className="flex items-center gap-1 shrink-0 self-end mb-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingPirog(item.pirog);
-                          setCreatorDefaultCategory(item.category as PirogCategory);
-                          setIsCustomCreatorOpen(true);
-                        }}
-                        className="p-1.5 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 hover:border-blue-400 rounded-lg shadow-2xs flex items-center gap-1 text-[11px] font-bold cursor-pointer transition-colors"
-                        title="Редактировать этот пирог в конструкторе (состав, расценки, материалы)"
-                      >
-                        <Pencil className="w-3 h-3 text-blue-600" />
-                        <span className="text-[10px]">Редактор</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setExpandedSections(prev => ({ ...prev, [item.category]: !prev[item.category] }))}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSections(prev => ({ ...prev, [item.category]: !prev[item.category] }))}
                       className={`p-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors shrink-0 cursor-pointer self-end mb-0.5 border ${
-                        isExpanded ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 hover:text-blue-700 hover:bg-slate-100 border-slate-200 shadow-2xs'
+                        isExpanded ? 'bg-blue-600 text-white border-blue-600 shadow-2xs' : 'bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 border-slate-300 shadow-2xs'
                       }`}
                       title="Настроить работы, материалы и цены"
                     >
@@ -855,7 +840,6 @@ export const RoomFinishesModal: React.FC<RoomFinishesModalProps> = ({
                       <span className="text-[10px]">{isExpanded ? 'Свернуть' : 'Состав и цены'}</span>
                       {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </button>
-                    </div>
                   )}
                 </div>
 
